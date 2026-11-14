@@ -6,6 +6,9 @@ import { furnishUpper } from './furnish_upper.js';
 import { updateDoors, colliders, doors } from './builder.js';
 import { Player } from './player.js';
 import { initTouch } from './touch.js';
+import { buildWorld, streetAt, LOT, attribution } from './world.js';
+import { pointInPolygon } from './obstacles.js';
+import { Garage } from './drive.js';
 
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -17,8 +20,8 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.8;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xe9cfae, 70, 260);
-const camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.08, 400);
+scene.fog = new THREE.Fog(0xe9cfae, 90, 520);
+const camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.08, 900);
 
 // ---- Golden-hour sky + sun, matching the reference renders -----------------
 const sunDir = new THREE.Vector3(-0.62, 0.3, 0.72).normalize();
@@ -94,13 +97,30 @@ scene.environment = pmrem.fromEquirectangular(skyTex).texture;
 scene.environmentIntensity = 0.7;
 
 const sun = new THREE.DirectionalLight(0xffcf9c, 2.9);
-sun.position.copy(sunDir).multiplyScalar(70);
 sun.castShadow = true;
 sun.shadow.mapSize.set(4096, 4096);
-Object.assign(sun.shadow.camera, { left: -34, right: 34, top: 34, bottom: -34, near: 1, far: 160 });
+Object.assign(sun.shadow.camera, { near: 1, far: 200 });
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.04;
-scene.add(sun);
+scene.add(sun, sun.target);
+
+// Nothing that casts a shadow moves, so the shadow map is only re-rendered when its patch of
+// ground changes: a tight, sharp patch over the lot at home, and a wider one that follows you
+// in 24 m steps out on the estate.
+const shadowPatch = { x: NaN, z: NaN, half: 0 };
+function focusShadows(pos) {
+  const away = Math.max(Math.abs(pos.x), Math.abs(pos.z)) > (shadowPatch.half === 34 ? 38 : 30);
+  const half = away ? 70 : 34;
+  const x = away ? Math.round(pos.x / 24) * 24 : 0;
+  const z = away ? Math.round(pos.z / 24) * 24 : 0;
+  if (x === shadowPatch.x && z === shadowPatch.z && half === shadowPatch.half) return;
+  Object.assign(shadowPatch, { x, z, half });
+  sun.target.position.set(x, 0, z);
+  sun.position.copy(sunDir).multiplyScalar(90).add(sun.target.position);
+  Object.assign(sun.shadow.camera, { left: -half, right: half, top: half, bottom: -half });
+  sun.shadow.camera.updateProjectionMatrix();
+  renderer.shadowMap.needsUpdate = true;
+}
 scene.add(new THREE.HemisphereLight(0xcfdcff, 0x8c7b66, 0.5));
 
 // Warm interior fill lights (no shadows, to stay fast)
@@ -121,8 +141,10 @@ const house = buildHouse(scene);
 furnishGround(house);
 furnishUpper(house);
 buildSite(scene);
+const world = buildWorld(scene);
 
 const player = new Player(camera, canvas);
+const garage = new Garage(scene, camera, player);
 
 // ---- HUD -------------------------------------------------------------------
 const overlay = document.getElementById('overlay');
@@ -142,6 +164,26 @@ function enter() {
   else player.lock();
 }
 document.getElementById('start').addEventListener('click', enter);
+document.getElementById('credit').textContent = attribution;
+
+// Getting in and out of the cars: E on a keyboard, or the button that appears beside a car.
+const actBtn = document.getElementById('act');
+const viewBtn = document.getElementById('view');
+actBtn.addEventListener('click', () => garage.toggle());
+viewBtn.addEventListener('click', () => garage.toggleView());
+document.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  if (e.code === 'KeyE') garage.toggle();
+  if (e.code === 'KeyC') garage.toggleView();
+});
+function updateCarButtons() {
+  const near = garage.car ? null : garage.nearby();
+  const label = garage.car ? 'Get out' : near ? `Drive the ${near.name}` : '';
+  actBtn.hidden = !label;
+  viewBtn.hidden = !garage.car;
+  if (label && actBtn.dataset.label !== label) actBtn.firstElementChild.textContent = actBtn.dataset.label = label;
+}
+
 document.getElementById('menu').addEventListener('click', () => overlay.classList.remove('hidden'));
 canvas.addEventListener('click', () => touchMode || player.lock());
 player.onLockChange = (locked) => overlay.classList.toggle('hidden', locked);
@@ -169,7 +211,8 @@ function currentRoom() {
   for (const [name, x0, x1, z0, z1, f] of ROOMS) {
     if (f === floor && x >= x0 && x <= x1 && z >= z0 && z <= z1) return name;
   }
-  return floor === 1 ? 'Second floor' : 'Garden';
+  if (floor === 1) return 'Second floor';
+  return streetAt(x, z) || (pointInPolygon(x, z, LOT) ? 'Garden' : 'Los Reyes');
 }
 
 // Places to jump to, from the buttons on the start card or number keys 1-8.
@@ -188,12 +231,16 @@ SPOTS.forEach(([name, ...spot], i) => {
   const b = document.createElement('button');
   b.type = 'button';
   b.textContent = name;
-  b.addEventListener('click', () => {
+  const go = () => {
+    garage.recall(); // step out of any car, and bring cars left out on the estate back home
     player.teleport(...spot);
+  };
+  b.addEventListener('click', () => {
+    go();
     enter();
   });
   places.append(b);
-  document.addEventListener('keydown', (e) => e.code === `Digit${i + 1}` && player.teleport(...spot));
+  document.addEventListener('keydown', (e) => e.code === `Digit${i + 1}` && go());
 });
 
 // Portrait phones get a taller field of view so the view never narrows below the landscape one.
@@ -212,14 +259,15 @@ window.addEventListener('resize', () => {
 // ---- Loop ------------------------------------------------------------------
 const clock = new THREE.Clock();
 let lastRoom = '';
-let frames = 0;
+renderer.shadowMap.autoUpdate = false;
 function frame() {
-  // The sun and the building never move, so the shadow map only needs rendering once.
-  if (++frames === 4) renderer.shadowMap.autoUpdate = false;
   const dt = Math.min(clock.getDelta(), 0.05);
-  player.update(dt);
+  if (garage.car) garage.update(dt);
+  else player.update(dt);
   updateDoors(player.pos, dt);
-  const room = currentRoom();
+  focusShadows(player.pos);
+  updateCarButtons();
+  const room = garage.car ? `${currentRoom()} · ${Math.round(Math.abs(garage.car.speed) * 3.6)} km/h` : currentRoom();
   if (room !== lastRoom) {
     roomLabel.textContent = room;
     lastRoom = room;
@@ -229,7 +277,7 @@ function frame() {
 renderer.setAnimationLoop(frame);
 
 // Exposed for debugging / automated checks from the console.
-window.__house = { scene, camera, renderer, player, colliders, doors, THREE };
+window.__house = { scene, camera, renderer, player, garage, world, colliders, doors, THREE };
 // Debug camera: __house.cam(x, y, z, lookX, lookY, lookZ) parks a free camera; __house.walk() resumes walking.
 const walkUpdate = player.update.bind(player);
 window.__house.cam = (x, y, z, tx, ty, tz) => {

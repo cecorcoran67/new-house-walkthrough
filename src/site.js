@@ -1,31 +1,28 @@
 import * as THREE from 'three';
-import { M, colorMat } from './materials.js';
+import { M } from './materials.js';
 import { box, deco, clad, cylinder, addCollider, ledStrip } from './builder.js';
 import { sofa, plant, shrub, tree } from './props.js';
-import { parkCar } from './cars.js';
 import { H } from './house.js';
 
 const G = H.grade;
-const POOL = { x0: -2, x1: 8, z0: -21.5, z1: -16.5, floor: -1.5 };
+export const POOL = { x0: -2, x1: 8, z0: -21.5, z1: -16.5, floor: -1.5 };
 
 export function buildSite(scene) {
   const p = new THREE.Group();
   scene.add(p);
 
-  // Lawn, split into four slabs so the pool is a real basin you can step into
-  const far = 90;
+  // Ground for the whole estate, split into four slabs so the pool is a real basin you can step into
+  const far = 3500;
   box(p, -far, -4, -far, far, G, POOL.z0, M.grass, { cast: false });
   box(p, -far, -4, POOL.z1, far, G, far, M.grass, { cast: false });
   box(p, -far, -4, POOL.z0, POOL.x0, G, POOL.z1, M.grass, { cast: false });
   box(p, POOL.x1, -4, POOL.z0, far, G, POOL.z1, M.grass, { cast: false });
   pool(p);
 
-  // Driveway, street and paths (thin overlays on the lawn)
+  // Driveway and paths (thin overlays on the lawn); the street itself comes from the map in world.js
   const pave = (x0, z0, x1, z1, mat = M.paving) => deco(p, x0, G, z0, x1, G + 0.012, z1, mat, { cast: false });
-  pave(3.1, 7.6, 15, 26); // carport floor + drive
+  pave(3.1, 7.6, 14.6, 22.6); // carport floor + drive, out to the kerb
   pave(-1.2, 14.2, 3.1, 16.2);
-  pave(-3, 22, 3.1, 26);
-  pave(-far, 26, far, 34, colorMat(0x4a4b4d, 0.95)); // street
   pave(-3.5, -15.9, 12.5, -14.9); // terrace apron
   for (let x = -1.6; x < 8; x += 1.05) pave(x, -16.4, x + 0.8, -15.95); // stepping pads to the pool
 
@@ -34,16 +31,6 @@ export function buildSite(scene) {
   hotTub(p);
   firePit(p);
   planting(p);
-
-  // The requested vehicles, parked nose-in under the carport
-  parkCar(scene, 'tahoe', 5.05, G, 11.0);
-  parkCar(scene, 'bj30', 8.45, G, 10.8);
-
-  // Invisible property boundary
-  addCollider(-34, -4, -34, -33, 12, 34);
-  addCollider(33, -4, -34, 34, 12, 34);
-  addCollider(-34, -4, -34, 34, 12, -33);
-  addCollider(-34, -4, 33, 34, 12, 34);
   return p;
 }
 
@@ -100,9 +87,9 @@ function carport(p) {
     w.position.set(x, 0.23, z);
     g.add(w);
   }
-  g.position.set(14.0, G, 11.2);
+  g.position.set(13.8, G, 11.2);
   p.add(g);
-  addCollider(13.3, G, 9.9, 14.7, G + 1.8, 12.5);
+  addCollider(13.1, G, 9.9, 14.5, G + 1.8, 12.5);
 }
 
 function gazebo(p) {
@@ -133,10 +120,10 @@ function gazebo(p) {
 }
 
 function hotTub(p) {
-  box(p, 13.2, G, -13.6, 15.6, G + 0.85, -11.2, M.slat);
-  deco(p, 13.15, G + 0.85, -13.65, 15.65, G + 0.92, -11.15, M.white);
-  deco(p, 13.4, G + 0.86, -13.4, 15.4, G + 0.93, -11.4, M.water);
-  box(p, 12.7, G, -13.0, 13.2, G + 0.42, -11.8, M.slat); // step
+  box(p, 12, G, -13.6, 14.4, G + 0.85, -11.2, M.slat);
+  deco(p, 11.95, G + 0.85, -13.65, 14.45, G + 0.92, -11.15, M.white);
+  deco(p, 12.2, G + 0.86, -13.4, 14.2, G + 0.93, -11.4, M.water);
+  box(p, 11.5, G, -13.0, 12, G + 0.42, -11.8, M.slat); // step
 }
 
 function firePit(p) {
@@ -156,18 +143,13 @@ function firePit(p) {
 function planting(p) {
   // Ornamental grasses at the entry and along the facade
   for (const [x, z] of [[-2.2, 13.4], [-3.2, 13.6], [-2.7, 14.3], [-5, 13.3], [-7, 13.4], [-8.6, 13.3]]) plant(p, x, G, z, 1.5, false);
-  for (const [x, z, r] of [[-10.5, 9, 0.7], [-10.6, 2, 0.6], [-10.4, -6, 0.7], [13.3, 4, 0.6], [13.4, -5, 0.7], [-4.5, -14.6, 0.5]]) shrub(p, x, G, z, r);
+  for (const [x, z, r] of [[-10.2, -8, 0.6], [13.3, 4, 0.6], [13.4, -5, 0.7], [-4.5, -14.6, 0.5]]) shrub(p, x, G, z, r);
   // Up-lights washing the slatted wall, as in the dusk renders
   for (const x of [-8.4, -7, -5.6, -4.2]) {
     cylinder(p, x, G, 13.0, 0.06, 0.08, M.glow, { seg: 10 });
   }
-  // Perimeter hedges and trees
-  box(p, -20.5, G, -30, -19.5, G + 1.5, 24, M.plantDark);
-  box(p, 21.5, G, -30, 22.5, G + 1.5, 24, M.plantDark);
-  box(p, -20.5, G, -30.5, 22.5, G + 1.5, -29.5, M.plantDark);
-  const trees = [
-    [-16, 18, 8], [-17, 4, 9], [-16, -10, 7.5], [-15, -24, 8.5], [-4, -26, 7], [6, -27, 9], [16, -25, 8],
-    [18, -12, 7.5], [18.5, 2, 9], [18, 17, 8], [-13, 22, 6.5], [-26, 12, 10], [27, -4, 10], [-27, -18, 9], [12, 40, 9], [-14, 41, 10],
-  ];
+  // Trees behind the lot and across the street
+  // (the lot's own walls and hedge follow the surveyed boundary; see world.js)
+  const trees = [[-4, -26.5, 7], [6, -27, 9], [16, -26, 8], [12, 40, 9], [-14, 41, 10]];
   for (const [x, z, h] of trees) tree(p, x, G, z, h);
 }

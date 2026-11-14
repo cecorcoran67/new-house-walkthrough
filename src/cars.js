@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { M, drawnMaterial } from './materials.js';
-import { addCollider } from './builder.js';
 
 // Procedural SUVs built to manufacturer dimensions. Local axes: +x = nose, y = up, z = width.
 
@@ -21,7 +20,7 @@ const SPECS = {
 
 const tire = new THREE.MeshStandardMaterial({ color: 0x0d0d0e, roughness: 0.92 });
 const cladding = new THREE.MeshStandardMaterial({ color: 0x141516, roughness: 0.8 });
-const carGlass = new THREE.MeshPhysicalMaterial({ color: 0x0c1114, roughness: 0.06, metalness: 0.3, envMapIntensity: 2, side: THREE.DoubleSide });
+export const carGlass = new THREE.MeshPhysicalMaterial({ color: 0x0c1114, roughness: 0.06, metalness: 0.3, envMapIntensity: 2, side: THREE.DoubleSide });
 const headlamp = new THREE.MeshStandardMaterial({ color: 0xf4f6fa, emissive: 0xdfeaff, emissiveIntensity: 0.7, roughness: 0.2 });
 const tailLamp = new THREE.MeshStandardMaterial({ color: 0x8a0d0d, emissive: 0x9c0a06, emissiveIntensity: 0.9, roughness: 0.25 });
 const gold = new THREE.MeshStandardMaterial({ color: 0xd4a437, roughness: 0.3, metalness: 0.9 });
@@ -95,6 +94,7 @@ function wheel(g, s, x, side) {
   grp.add(cap);
   grp.position.set(x, s.wheelR, side * (s.W / 2 - w / 2 - 0.02));
   g.add(grp);
+  (g.userData.wheels ||= []).push({ grp, front: x > 0 });
 }
 
 function archTrim(g, s, x, side) {
@@ -273,12 +273,64 @@ function bowtie(g, x, y, z, facing) {
   g.add(m);
 }
 
-/** Parks a car nose-in (toward -z) with its centre at (x, z) on the given floor height. */
-export function parkCar(scene, kind, x, floorY, z) {
-  const { group, spec } = buildSUV(kind);
-  group.position.set(x, floorY, z);
-  group.rotation.y = Math.PI / 2;
-  scene.add(group);
-  addCollider(x - spec.W / 2, floorY, z - spec.L / 2, x + spec.W / 2, floorY + spec.Ht, z + spec.L / 2);
-  return group;
+const trim = new THREE.MeshStandardMaterial({ color: 0x1b1c1e, roughness: 0.85 });
+const liner = new THREE.MeshStandardMaterial({ color: 0xcfc8bc, roughness: 0.95 });
+const display = new THREE.MeshStandardMaterial({ color: 0x0a0f18, emissive: 0x24384d, emissiveIntensity: 0.5, roughness: 0.2 });
+
+/** Where the driver's eyes are, in the car's local axes (left-hand drive: left is -z). */
+export const driverEye = (s) => new THREE.Vector3(s.L / 2 - s.wsTop - 0.42, s.roof - 0.26, -0.38);
+
+/**
+ * Cabin fittings as seen from the driver's seat: dash, wheel, pillars, headlining and seat tops.
+ * Only shown while driving; from outside the tinted glass hides the cabin anyway.
+ */
+export function buildInterior(s) {
+  const g = new THREE.Group();
+  const hx = s.L / 2;
+  const half = s.W / 2 - 0.1; // inner face of the doors
+  const cowl = hx - s.cowl; // foot of the windscreen
+  const head = hx - s.wsTop; // top of the windscreen
+  const tail = -hx + s.rearTop + 0.08;
+  const eye = driverEye(s);
+  const mid = (cowl + tail) / 2;
+  const len = cowl - tail;
+  const bar = (x0, y0, x1, y1, z, t, mat) => {
+    const m = bx(g, Math.hypot(x1 - x0, y1 - y0), t, t, (x0 + x1) / 2, (y0 + y1) / 2, z, mat);
+    m.rotation.z = Math.atan2(y1 - y0, x1 - x0);
+  };
+
+  bx(g, len, 0.02, half * 2, mid, s.belt + 0.012, 0, trim); // everything below the window line
+  bx(g, 0.48, 0.16, half * 2, cowl - 0.26, s.belt - 0.04, 0, trim); // dashboard
+  bx(g, 0.2, 0.08, 0.4, cowl - 0.36, s.belt + 0.07, eye.z, trim); // instrument binnacle
+  bx(g, 0.02, 0.12, 0.32, cowl - 0.51, s.belt + 0.07, 0.1, display); // centre screen
+  bx(g, len - 0.4, 0.03, half * 2, mid - 0.2, s.roof - 0.075, 0, liner); // headlining
+  bx(g, 0.1, 0.06, half * 2, head - 0.03, s.roof - 0.06, 0, liner); // windscreen header
+  bx(g, 0.03, 0.07, 0.24, head - 0.14, s.roof - 0.17, 0, trim); // rear-view mirror
+  for (const side of [1, -1]) {
+    const z = side * half;
+    bx(g, len, 0.07, 0.1, mid, s.belt + 0.035, z - side * 0.02, trim); // door tops
+    bar(cowl, s.belt, head, s.roof - 0.04, z - side * 0.02, 0.05, trim); // A-pillar
+    for (const x of [0.22, -s.wb / 2 + 0.25, tail + 0.05]) bx(g, 0.1, s.roof - s.belt, 0.08, x, (s.roof + s.belt) / 2, z, trim);
+    bx(g, 0.1, 0.2, 0.26, eye.x - 1.08, s.belt + 0.5, side * 0.42, M.leather); // rear headrests
+  }
+  bx(g, 0.14, 0.42, 0.5, eye.x - 0.2, s.belt + 0.2, -eye.z, M.leather); // passenger seat back
+  bx(g, 0.1, 0.2, 0.26, eye.x - 0.22, s.belt + 0.5, -eye.z, M.leather);
+  bx(g, 0.16, 0.4, half * 2 - 0.2, eye.x - 1.05, s.belt + 0.19, 0, M.leather); // rear bench
+
+  // Steering wheel: raked column, and a spinner that turns with the front wheels
+  const column = new THREE.Group();
+  column.position.set(eye.x + 0.47, s.belt - 0.07, eye.z);
+  column.rotation.z = -0.42;
+  const rim = new THREE.Group();
+  rim.rotation.y = Math.PI / 2;
+  const spinner = new THREE.Group();
+  spinner.add(new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.016, 10, 28), trim));
+  spinner.add(new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.045, 0.02), trim));
+  spinner.add(new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.18, 0.02), trim).translateY(-0.09));
+  rim.add(spinner);
+  column.add(rim);
+  g.add(column);
+  g.userData.steering = spinner;
+  g.traverse((o) => (o.castShadow = false));
+  return g;
 }

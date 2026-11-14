@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { colliders } from './builder.js';
+import { solidAt } from './obstacles.js';
 
 const RADIUS = 0.28; // half-width of the walker
 const HEIGHT = 1.78; // body height used for head clearance
@@ -21,6 +22,7 @@ export class Player {
     this.eyeY = this.pos.y + EYE;
     this.keys = new Set();
     this.stick = { x: 0, y: 0 }; // on-screen joystick, each axis -1..1 (y is down)
+    this.lastLook = 0; // when the view was last turned by mouse or finger
     this.locked = false;
     this.onGround = true;
     this.bob = 0;
@@ -42,6 +44,7 @@ export class Player {
 
   // Turn the head by the given angles (radians); positive = right / down.
   look(dYaw, dPitch) {
+    this.lastLook = performance.now();
     this.yaw -= dYaw;
     this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch - dPitch));
   }
@@ -67,7 +70,8 @@ export class Player {
       if (c.y0 >= feetY + HEIGHT) continue; // above the head
       return true;
     }
-    return false;
+    // Neighbouring houses, trees, parked cars and the estate fence
+    return solidAt(x, z, RADIUS, feetY + STEP, feetY + HEIGHT);
   }
 
   // Highest walkable surface under the feet (within step-up range).
