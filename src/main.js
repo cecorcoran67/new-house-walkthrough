@@ -5,6 +5,7 @@ import { furnishGround } from './furnish_ground.js';
 import { furnishUpper } from './furnish_upper.js';
 import { updateDoors, colliders, doors } from './builder.js';
 import { Player } from './player.js';
+import { initTouch } from './touch.js';
 
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -126,9 +127,23 @@ const player = new Player(camera, canvas);
 // ---- HUD -------------------------------------------------------------------
 const overlay = document.getElementById('overlay');
 const roomLabel = document.getElementById('room');
-const startBtn = document.getElementById('start');
-startBtn.addEventListener('click', () => player.lock());
-canvas.addEventListener('click', () => player.lock());
+initTouch(player, canvas, document.getElementById('stick'));
+
+// Phones and tablets have no pointer lock (iOS Safari lacks the API entirely), so they get
+// an on-screen joystick and drag-to-look instead of mouse capture.
+let touchMode = matchMedia('(pointer: coarse)').matches || !canvas.requestPointerLock;
+const setTouchMode = (on) => document.body.classList.toggle('touch', (touchMode = on));
+setTouchMode(touchMode);
+// Touchscreen laptops: switch over the first time a finger is used.
+window.addEventListener('pointerdown', (e) => e.pointerType === 'touch' && setTouchMode(true), true);
+
+function enter() {
+  if (touchMode) overlay.classList.add('hidden');
+  else player.lock();
+}
+document.getElementById('start').addEventListener('click', enter);
+document.getElementById('menu').addEventListener('click', () => overlay.classList.remove('hidden'));
+canvas.addEventListener('click', () => touchMode || player.lock());
 player.onLockChange = (locked) => overlay.classList.toggle('hidden', locked);
 
 const ROOMS = [
@@ -157,25 +172,40 @@ function currentRoom() {
   return floor === 1 ? 'Second floor' : 'Garden';
 }
 
-// Number keys jump to key spots; handy for showing people around quickly.
-const SPOTS = {
-  Digit1: [1.2, H.grade, 19, 0], // street view
-  Digit2: [1.3, 0, 10.5, 0], // foyer
-  Digit3: [0.5, 0, -1, 0], // living room
-  Digit4: [-5, 0, 2.6, Math.PI / 2], // foot of the stairs
-  Digit5: [-1, H.f2, 1, Math.PI], // upstairs lounge
-  Digit6: [6.5, H.f2, -3, 0], // master bedroom
-  Digit7: [2, 0, -12.5, Math.PI], // terrace looking back at the house
-  Digit8: [9.5, H.grade, 17.5, 0.35], // carport / cars
-};
-document.addEventListener('keydown', (e) => {
-  const s = SPOTS[e.code];
-  if (s) player.teleport(...s);
+// Places to jump to, from the buttons on the start card or number keys 1-8.
+const SPOTS = [
+  ['Street', 1.2, H.grade, 19, 0],
+  ['Foyer', 1.3, 0, 10.5, 0],
+  ['Living room', 0.5, 0, -1, 0],
+  ['Stairs', -5, 0, 2.6, Math.PI / 2],
+  ['Upstairs lounge', -1, H.f2, 1, Math.PI],
+  ['Master bedroom', 6.5, H.f2, -3, 0],
+  ['Terrace', 2, 0, -12.5, Math.PI], // looking back at the house
+  ['Cars', 9.5, H.grade, 17.5, 0.35],
+];
+const places = document.getElementById('places');
+SPOTS.forEach(([name, ...spot], i) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = name;
+  b.addEventListener('click', () => {
+    player.teleport(...spot);
+    enter();
+  });
+  places.append(b);
+  document.addEventListener('keydown', (e) => e.code === `Digit${i + 1}` && player.teleport(...spot));
 });
 
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+// Portrait phones get a taller field of view so the view never narrows below the landscape one.
+function fitCamera() {
+  const aspect = window.innerWidth / window.innerHeight;
+  camera.aspect = aspect;
+  camera.fov = Math.min(100, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(34)) / Math.min(1, aspect))));
   camera.updateProjectionMatrix();
+}
+fitCamera();
+window.addEventListener('resize', () => {
+  fitCamera();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 

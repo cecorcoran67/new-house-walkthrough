@@ -19,6 +19,7 @@ export class Player {
     this.pitch = 0;
     this.eyeY = this.pos.y + EYE;
     this.keys = new Set();
+    this.stick = { x: 0, y: 0 }; // on-screen joystick, each axis -1..1 (y is down)
     this.locked = false;
     this.onGround = true;
     this.bob = 0;
@@ -34,10 +35,14 @@ export class Player {
       this.onLockChange?.(this.locked);
     });
     document.addEventListener('mousemove', (e) => {
-      if (!this.locked) return;
-      this.yaw -= e.movementX * 0.0022;
-      this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch - e.movementY * 0.0022));
+      if (this.locked) this.look(e.movementX * 0.0022, e.movementY * 0.0022);
     });
+  }
+
+  // Turn the head by the given angles (radians); positive = right / down.
+  look(dYaw, dPitch) {
+    this.yaw -= dYaw;
+    this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch - dPitch));
   }
 
   lock() {
@@ -77,12 +82,13 @@ export class Player {
 
   update(dt) {
     const k = this.keys;
-    const f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
-    const s = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
+    const f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0) - this.stick.y;
+    const s = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0) + this.stick.x;
     if (k.has('ArrowLeft')) this.yaw += dt * 1.9;
     if (k.has('ArrowRight')) this.yaw -= dt * 1.9;
 
-    const speed = k.has('ShiftLeft') || k.has('ShiftRight') ? RUN : WALK;
+    // Keys are all-or-nothing; the joystick scales speed with how far it is pushed.
+    const speed = (k.has('ShiftLeft') || k.has('ShiftRight') ? RUN : WALK) * Math.min(1, Math.hypot(f, s));
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
     let dx = (-sin * f + cos * s);
