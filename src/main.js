@@ -192,7 +192,7 @@ document.addEventListener('visibilitychange', () => sound.pause(document.hidden)
 const soundBtn = document.getElementById('sound');
 function toggleSound() {
   sound.setMuted(!sound.muted);
-  soundBtn.textContent = sound.muted ? 'Sound off' : 'Sound on';
+  soundBtn.textContent = sound.muted ? 'Unmute sound' : 'Mute sound'; // names what a press will do
 }
 soundBtn.addEventListener('click', toggleSound);
 document.addEventListener('keydown', (e) => e.code === 'KeyM' && !e.repeat && toggleSound());
