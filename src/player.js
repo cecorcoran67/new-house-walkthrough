@@ -7,6 +7,7 @@ const EYE = 1.62;
 const STEP = 0.3; // tallest ledge that can be walked up (stair risers are 0.18, coffee tables are taller)
 const WALK = 3.4;
 const RUN = 6.5;
+const TURN = 1.9; // rad/s when steering with the arrow keys or the joystick
 const GRAVITY = 22;
 
 export class Player {
@@ -83,9 +84,12 @@ export class Player {
   update(dt) {
     const k = this.keys;
     const f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0) - this.stick.y;
-    const s = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0) + this.stick.x;
-    if (k.has('ArrowLeft')) this.yaw += dt * 1.9;
-    if (k.has('ArrowRight')) this.yaw -= dt * 1.9;
+    const s = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
+    if (k.has('ArrowLeft')) this.yaw += dt * TURN;
+    if (k.has('ArrowRight')) this.yaw -= dt * TURN;
+    // The joystick steers rather than strafes, so the view always faces where you are heading.
+    // Squaring the deflection keeps a slightly off-centre push from wandering.
+    this.yaw -= this.stick.x * Math.abs(this.stick.x) * TURN * dt;
 
     // Keys are all-or-nothing; the joystick scales speed with how far it is pushed.
     const speed = (k.has('ShiftLeft') || k.has('ShiftRight') ? RUN : WALK) * Math.min(1, Math.hypot(f, s));
