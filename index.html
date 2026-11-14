@@ -35,14 +35,34 @@
         position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
         border-radius: 50%; background: rgba(255, 255, 255, 0.75); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); pointer-events: none;
       }
-      /* Mini map: top right, tucked under the Menu button on touch screens */
+      /* Mini map: top right, tucked under the Menu button on touch screens. Click to open a larger view. */
       @media (max-width: 720px), (max-height: 480px) { :root { --hud-map: 112px; } }
+      #map-btn {
+        position: fixed; z-index: 6; padding: 0; border: 0; background: transparent; cursor: pointer;
+        right: calc(var(--hud-space-2) + env(safe-area-inset-right)); top: calc(var(--hud-space-2) + env(safe-area-inset-top));
+        width: var(--hud-map); height: var(--hud-map); border-radius: 50%;
+      }
+      .touch #map-btn { top: calc(var(--hud-space-2) + var(--hud-tap) + var(--hud-space-1) + env(safe-area-inset-top)); }
       #map {
-        position: fixed; right: calc(var(--hud-space-2) + env(safe-area-inset-right)); top: calc(var(--hud-space-2) + env(safe-area-inset-top));
-        width: var(--hud-map); height: var(--hud-map); border-radius: 50%; box-sizing: border-box;
+        display: block; width: 100%; height: 100%; border-radius: 50%; box-sizing: border-box;
         background: var(--hud-bg); border: 2px solid var(--hud-muted); pointer-events: none;
       }
-      .touch #map { top: calc(var(--hud-space-2) + var(--hud-tap) + var(--hud-space-1) + env(safe-area-inset-top)); }
+      #map-btn:hover #map, #map-btn:focus-visible #map { border-color: var(--hud-accent); }
+      #map-btn:focus-visible { outline: 2px solid var(--hud-fg); outline-offset: 2px; }
+      #atlas {
+        position: fixed; inset: 0; z-index: 5; display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        padding: var(--hud-space-2); box-sizing: border-box;
+        background: rgba(12, 10, 9, 0.45); gap: var(--hud-space-2);
+        transition: opacity 0.25s ease, visibility 0.25s;
+      }
+      #atlas.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+      #atlas-map {
+        width: min(92vmin, calc(100vw - 2 * var(--hud-space-2)), calc(100dvh - var(--hud-tap) - 3 * var(--hud-space-2)));
+        aspect-ratio: 1; height: auto; border-radius: 50%; box-sizing: border-box;
+        background: var(--hud-bg); border: 2px solid var(--hud-muted);
+      }
+      #overlay { z-index: 3; }
       /* Touch controls: only shown on touch screens (body.touch). */
       #stick, #menu { display: none; }
       .touch #stick {
@@ -110,7 +130,13 @@
     <canvas id="scene"></canvas>
     <div id="crosshair" aria-hidden="true"></div>
     <div id="room" role="status" aria-live="polite">Garden</div>
-    <canvas id="map" aria-hidden="true"></canvas>
+    <button id="map-btn" type="button" aria-label="Open larger map" aria-expanded="false" aria-controls="atlas">
+      <canvas id="map" aria-hidden="true"></canvas>
+    </button>
+    <div id="atlas" class="hidden" role="dialog" aria-modal="true" aria-label="Los Reyes map">
+      <canvas id="atlas-map" aria-hidden="true"></canvas>
+      <button id="atlas-close" class="hud-btn" type="button">Close map</button>
+    </div>
     <div id="stick" aria-label="Walk joystick"><i></i></div>
     <button id="menu" class="hud-btn" type="button">Menu</button>
     <div id="car">
@@ -130,14 +156,16 @@
           <dt>Space</dt><dd>Jump, or climb in the helicopter</dd>
           <dt>E</dt><dd>Get in or out of a car or the helicopter (W A S D drive or fly, C changes view)</dd>
           <dt>M</dt><dd>Mute or unmute the sound</dd>
-          <dt>1 – 8</dt><dd>Jump to one of the places below</dd>
-          <dt>Esc</dt><dd>Release the mouse</dd>
+          <dt>Mini map</dt><dd>Click it for a larger view of Los Reyes</dd>
+          <dt>1 – 9</dt><dd>Jump to one of the places below</dd>
+          <dt>Esc</dt><dd>Close the large map, or release the mouse</dd>
         </dl>
         <dl class="keys for-touch">
           <dt>Joystick</dt><dd>Push up or down to walk, sideways to turn</dd>
           <dt>Drag</dt><dd>Look up, down and around</dd>
           <dt>Cars</dt><dd>Walk up to one and tap Drive, or step in front of one on the street to stop it; the joystick then steers and accelerates, and letting go stops the car</dd>
           <dt>Helicopter</dt><dd>Walk up to it and tap Fly; joystick pitches and yaws, Climb and Down change altitude, land before getting out</dd>
+          <dt>Mini map</dt><dd>Tap it for a larger view of Los Reyes</dd>
           <dt>Menu</dt><dd>Come back to this screen</dd>
         </dl>
         <div id="places" role="group" aria-label="Jump to a place"></div>

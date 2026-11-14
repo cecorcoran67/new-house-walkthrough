@@ -13,7 +13,7 @@ import { M, drawnMaterial } from './materials.js';
 // top (m/s), accel (m/s²) and engine set how it drives and sounds; pace is how fast traffic takes it.
 const spec = (o) => ({
   gap: 0.07, sill: 0, noseDrop: 0.06, metalness: 0.4, env: 0.8, pillars: [0.22, -o.wb / 2 + 0.25],
-  face: 'plain', lamps: 'rect', tail: 'wide', bumper: 'paint', seats: 5, top: 19.5, accel: 4.2, engine: 'i4', pace: 9, ...o,
+  face: 'plain', lamps: 'rect', tail: 'wide', bumper: 'paint', seats: 5, top: 19.5, accel: 6.8, engine: 'i4', pace: 9, ...o,
 });
 
 const SPECS = {
@@ -37,16 +37,16 @@ const SPECS = {
   }),
   hatch: spec({
     name: 'hatchback', L: 4.05, W: 1.74, Ht: 1.5, wb: 2.55, wheelR: 0.31, belt: 0.95, hood: 0.9, roof: 1.47,
-    cowl: 1.1, wsTop: 1.6, rearTop: 0.5, rearBase: 0.08, sill: 0.1, pillars: [-0.15, -1.0], top: 20, accel: 3.8,
+    cowl: 1.1, wsTop: 1.6, rearTop: 0.5, rearBase: 0.08, sill: 0.1, pillars: [-0.15, -1.0], top: 20, accel: 6.2,
   }),
   suv: spec({
     name: 'SUV', L: 4.5, W: 1.84, Ht: 1.68, wb: 2.68, wheelR: 0.36, belt: 1.08, hood: 1.04, roof: 1.63,
-    cowl: 1.15, wsTop: 1.7, rearTop: 0.35, rearBase: 0.06, pillars: [-0.05, -1.0], bumper: 'clad', tail: 'tall', rails: true, top: 20, accel: 4,
+    cowl: 1.15, wsTop: 1.7, rearTop: 0.35, rearBase: 0.06, pillars: [-0.05, -1.0], bumper: 'clad', tail: 'tall', rails: true, top: 20, accel: 6.5,
   }),
   pickup: spec({
     name: 'pickup', L: 5.3, W: 1.86, Ht: 1.8, wb: 3.08, wheelR: 0.39, belt: 1.12, hood: 1.1, roof: 1.75,
     cowl: 1.2, wsTop: 1.75, rearTop: 1.9, rearBase: 1.75, pillars: [0.25, -0.62], blindRear: true,
-    bumper: 'clad', tail: 'tall', top: 20, accel: 3.8,
+    bumper: 'clad', tail: 'tall', top: 20, accel: 6.2,
   }),
 
   // ---- Old-timers: chrome bumpers, round lamps, steel wheels
@@ -55,20 +55,20 @@ const SPECS = {
     name: 'classic 4x4', L: 3.84, W: 1.67, Ht: 1.93, wb: 2.285, wheelR: 0.38, belt: 1.12, hood: 1.1, roof: 1.86,
     cowl: 1.22, wsTop: 1.3, rearTop: 0.08, rearBase: 0.04, noseDrop: 0.02, pillars: [0.05],
     metalness: 0.1, env: 0.4, lamps: 'round', tail: 'tall', bumper: 'chrome', steelWheels: true, roofColor: 0xf1efe8,
-    top: 15, accel: 2.6, pace: 6.5,
+    top: 15, accel: 4.2, pace: 6.5,
   }),
   // After the 1970s Toyota Hilux / Datsun 620.
   oldPickup: spec({
     name: 'old pickup', L: 4.3, W: 1.6, Ht: 1.58, wb: 2.6, wheelR: 0.33, belt: 0.98, hood: 0.95, roof: 1.5,
     cowl: 1.1, wsTop: 1.45, rearTop: 1.95, rearBase: 1.85, noseDrop: 0.03, sill: 0.04, pillars: [-0.2], blindRear: true,
     metalness: 0.1, env: 0.4, lamps: 'round', tail: 'tall', bumper: 'chrome', steelWheels: true, seats: 2,
-    top: 15, accel: 2.4, pace: 6.5,
+    top: 15, accel: 4, pace: 6.5,
   }),
   // After the Mercedes-Benz W123 saloon (1976-85): 4725 x 1786 x 1438 mm.
   classicSedan: spec({
     name: 'classic sedan', L: 4.72, W: 1.79, Ht: 1.44, wb: 2.8, wheelR: 0.32, belt: 0.96, hood: 0.93, roof: 1.4,
     cowl: 1.35, wsTop: 1.85, rearTop: 1.4, rearBase: 0.95, noseDrop: 0.03, sill: 0.1, pillars: [-0.1, -0.8],
-    metalness: 0.15, env: 0.5, lamps: 'round', bumper: 'chrome', steelWheels: true, top: 17, accel: 2.8, pace: 7.5,
+    metalness: 0.15, env: 0.5, lamps: 'round', bumper: 'chrome', steelWheels: true, top: 17, accel: 4.4, pace: 7.5,
   }),
 
   // ---- Exotics: low, wide and quick
@@ -76,19 +76,19 @@ const SPECS = {
   supercar: spec({
     name: 'supercar', L: 4.52, W: 2.0, Ht: 1.17, wb: 2.62, wheelR: 0.34, gap: 0.04, belt: 0.8, hood: 0.72, roof: 1.15,
     cowl: 1.35, wsTop: 2.15, rearTop: 1.25, rearBase: 0.25, noseDrop: 0.14, sill: 0.2, pillars: [-0.55], blindRear: true,
-    metalness: 0.55, env: 1.1, lamps: 'slim', wing: true, seats: 2, top: 33, accel: 7.5, engine: 'v8', pace: 12,
+    metalness: 0.55, env: 1.1, lamps: 'slim', wing: true, seats: 2, top: 33, accel: 11, engine: 'v8', pace: 12,
   }),
   // Rear-engined fastback in the manner of a Porsche 911: 4500 x 1850 x 1300 mm.
   sports: spec({
     name: 'sports car', L: 4.5, W: 1.85, Ht: 1.3, wb: 2.45, wheelR: 0.33, gap: 0.05, belt: 0.86, hood: 0.78, roof: 1.27,
     cowl: 1.4, wsTop: 2.05, rearTop: 1.5, rearBase: 0.1, noseDrop: 0.12, sill: 0.16, pillars: [-0.4, -0.95], blindRear: true,
-    metalness: 0.5, env: 1, lamps: 'round', seats: 2, top: 30, accel: 6.5, engine: 'v8', pace: 11,
+    metalness: 0.5, env: 1, lamps: 'round', seats: 2, top: 30, accel: 10, engine: 'v8', pace: 11,
   }),
   // 2020- Chevrolet Corvette C8 Stingray: 4630 x 1934 x 1234 mm, 2722 mm wheelbase. Mid-engined, long hood, full-width tail bar.
   c8: spec({
     name: 'Corvette', L: 4.63, W: 1.93, Ht: 1.23, wb: 2.72, wheelR: 0.335, gap: 0.04, belt: 0.76, hood: 0.68, roof: 1.2,
     cowl: 1.55, wsTop: 2.4, rearTop: 0.95, rearBase: 0.32, noseDrop: 0.16, sill: 0.22, pillars: [-0.45],
-    paint: 0xc41e3a, metalness: 0.5, env: 1.1, face: 'c8', lamps: 'slim', seats: 2, top: 32, accel: 7.4, engine: 'v8', pace: 12,
+    paint: 0xc41e3a, metalness: 0.5, env: 1.1, face: 'c8', lamps: 'slim', seats: 2, top: 32, accel: 11, engine: 'v8', pace: 12,
   }),
 };
 // Costa Rican taxis are red saloons with a yellow roof sign.

@@ -138,8 +138,8 @@ export class Car {
     this.lights(braking || reversing, reversing);
 
     if (handbrake) v -= Math.sign(v) * Math.min(Math.abs(v), 14 * dt);
-    else if (throttle > 0) v += (v < -0.3 ? 9 : s.accel * (1 - Math.max(0, v) / (top * 1.05))) * throttle * dt;
-    else if (throttle < 0) v += (v > 0.3 ? 9 : 3 * (1 - Math.max(0, -v) / REVERSE)) * throttle * dt;
+    else if (throttle > 0) v += (v < -0.3 ? 9 : s.accel * (1 - Math.max(0, v) / (top * 1.2))) * throttle * dt;
+    else if (throttle < 0) v += (v > 0.3 ? 9 : 5 * (1 - Math.max(0, -v) / REVERSE)) * throttle * dt;
     else v -= Math.sign(v) * Math.min(Math.abs(v), COAST * dt); // hands off the controls: brake to a stop
     v -= Math.sign(v) * Math.min(Math.abs(v), 0.3 * dt); // rolling drag
     if (Math.abs(v) > top) v -= Math.sign(v) * Math.min(Math.abs(v) - top, 8 * dt); // grass slows you down

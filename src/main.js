@@ -13,7 +13,7 @@ import { Traffic } from './traffic.js';
 import { Parked } from './parked.js';
 import { Sound } from './sound.js';
 import { Minimap } from './minimap.js';
-import { Helipad } from './heli.js';
+import { Helipad, PAD } from './heli.js';
 
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -156,8 +156,10 @@ const heli = new Helipad(scene, camera, player);
 
 // ---- HUD -------------------------------------------------------------------
 const overlay = document.getElementById('overlay');
+const atlas = document.getElementById('atlas');
+const mapBtn = document.getElementById('map-btn');
 const roomLabel = document.getElementById('room');
-const minimap = new Minimap(document.getElementById('map'));
+const minimap = new Minimap(document.getElementById('map'), document.getElementById('atlas-map'));
 initTouch(player, canvas, document.getElementById('stick'));
 
 // Phones and tablets have no pointer lock (iOS Safari lacks the API entirely), so they get
@@ -244,8 +246,55 @@ soundBtn.addEventListener('click', toggleSound);
 document.addEventListener('keydown', (e) => e.code === 'KeyM' && !e.repeat && toggleSound());
 
 document.getElementById('menu').addEventListener('click', () => overlay.classList.remove('hidden'));
-canvas.addEventListener('click', () => touchMode || player.lock());
-player.onLockChange = (locked) => overlay.classList.toggle('hidden', locked);
+canvas.addEventListener('click', () => {
+  if (minimap.wide) return;
+  touchMode || player.lock();
+});
+player.onLockChange = (locked) => {
+  if (minimap.wide) overlay.classList.add('hidden');
+  else overlay.classList.toggle('hidden', locked);
+};
+
+let overlayHeld = false;
+function openAtlas() {
+  overlayHeld = !overlay.classList.contains('hidden');
+  overlay.classList.add('hidden');
+  if (player.locked) document.exitPointerLock();
+  minimap.wide = true;
+  atlas.classList.remove('hidden');
+  mapBtn.setAttribute('aria-expanded', 'true');
+  mapBtn.setAttribute('aria-label', 'Close larger map');
+  minimap.resize();
+  document.getElementById('atlas-close').focus();
+}
+function closeAtlas() {
+  minimap.wide = false;
+  atlas.classList.add('hidden');
+  mapBtn.setAttribute('aria-expanded', 'false');
+  mapBtn.setAttribute('aria-label', 'Open larger map');
+  player.keys.clear();
+  if (overlayHeld) overlay.classList.remove('hidden');
+  overlayHeld = false;
+  mapBtn.blur();
+}
+mapBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (minimap.wide) closeAtlas();
+  else openAtlas();
+});
+document.getElementById('atlas-close').addEventListener('click', (e) => {
+  e.stopPropagation();
+  closeAtlas();
+});
+atlas.addEventListener('click', (e) => {
+  if (e.target === atlas) closeAtlas();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Escape' && minimap.wide) {
+    e.preventDefault();
+    closeAtlas();
+  }
+});
 
 const ROOMS = [
   // [name, x0, x1, z0, z1, floor]  (first match wins)
@@ -288,6 +337,7 @@ const SPOTS = [
   ['Master bedroom', 6.5, H.f2, -3, 0],
   ['Terrace', 2, 0, -12.5, Math.PI], // looking back at the house
   ['Cars', 9.5, H.grade, 17.5, 0.35],
+  ['Helicopter', PAD.x + 0.4, H.grade, PAD.z - 2.2, Math.PI],
 ];
 const places = document.getElementById('places');
 SPOTS.forEach(([name, ...spot], i) => {
@@ -328,7 +378,9 @@ function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   parked.update();
   traffic.update(dt);
-  if (heli.craft) heli.update(dt);
+  if (minimap.wide) {
+    if (heli.craft) heli.heli.spin(dt, heli.heli.airborne ? 1 : 0.1);
+  } else if (heli.craft) heli.update(dt);
   else {
     heli.heli.spin(dt, 0.1);
     if (garage.car) garage.update(dt);

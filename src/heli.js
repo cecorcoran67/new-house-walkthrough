@@ -329,7 +329,7 @@ export class Helicopter {
     }
     const power = lift * (y > FLOOR + 0.15 ? 1 : 0);
     let v = this.speed;
-    v += cyclicY * 16 * power * dt;
+    v += cyclicY * 24 * power * dt;
     const drag = (y > FLOOR + 3 ? 4 : 12) + (collective < 0 ? 6 : 0);
     v -= Math.sign(v) * Math.min(Math.abs(v), drag * dt);
     if (Math.abs(v) > MAX_SPEED * lift) v -= Math.sign(v) * Math.min(Math.abs(v) - MAX_SPEED * lift, 20 * dt);
