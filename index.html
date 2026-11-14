@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>New House — Walkthrough</title>
+    <style>
+      /* HUD tokens: kept in one place so they can be remapped to DESIGN.md once it exists. */
+      :root {
+        --hud-bg: rgba(18, 16, 14, 0.78);
+        --hud-fg: #f6f1e9;
+        --hud-muted: #d6cbbb;
+        --hud-accent: #e7a567;
+        --hud-accent-fg: #1b1410;
+        --hud-radius: 12px;
+        --hud-space-1: 8px;
+        --hud-space-2: 16px;
+        --hud-space-3: 24px;
+        --hud-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #14110f; font-family: var(--hud-font); color: var(--hud-fg); }
+      #scene { display: block; width: 100vw; height: 100vh; }
+      #room {
+        position: fixed; left: var(--hud-space-2); bottom: var(--hud-space-2);
+        padding: var(--hud-space-1) var(--hud-space-2); border-radius: var(--hud-radius);
+        background: var(--hud-bg); font-size: 15px; letter-spacing: 0.02em; pointer-events: none;
+      }
+      #crosshair {
+        position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
+        border-radius: 50%; background: rgba(255, 255, 255, 0.75); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); pointer-events: none;
+      }
+      #overlay {
+        position: fixed; inset: 0; display: grid; place-items: center;
+        background: rgba(12, 10, 9, 0.45); transition: opacity 0.25s ease;
+      }
+      #overlay.hidden { opacity: 0; pointer-events: none; }
+      .card {
+        max-width: min(520px, calc(100vw - 2 * var(--hud-space-3)));
+        padding: var(--hud-space-3); border-radius: var(--hud-radius); background: var(--hud-bg);
+        backdrop-filter: blur(6px);
+      }
+      .card h1 { margin: 0 0 var(--hud-space-1); font-size: 22px; font-weight: 600; }
+      .card p { margin: 0 0 var(--hud-space-2); color: var(--hud-muted); line-height: 1.5; font-size: 15px; }
+      .keys { display: grid; grid-template-columns: auto 1fr; gap: var(--hud-space-1) var(--hud-space-2); margin: 0 0 var(--hud-space-3); font-size: 14px; }
+      .keys dt { font-weight: 600; white-space: nowrap; }
+      .keys dd { margin: 0; color: var(--hud-muted); }
+      #start {
+        width: 100%; padding: 12px var(--hud-space-2); border: 0; border-radius: var(--hud-radius);
+        background: var(--hud-accent); color: var(--hud-accent-fg); font: 600 16px var(--hud-font); cursor: pointer;
+      }
+      #start:hover, #start:focus-visible { filter: brightness(1.08); outline: 2px solid var(--hud-fg); outline-offset: 2px; }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+    <div id="crosshair" aria-hidden="true"></div>
+    <div id="room" role="status" aria-live="polite">Garden</div>
+    <div id="overlay">
+      <div class="card">
+        <h1>Walk through the house</h1>
+        <p>Doors open as you approach and you can walk straight through them. Take the floating stairs in the stair hall up to the second floor.</p>
+        <dl class="keys">
+          <dt>W A S D</dt><dd>Walk (arrow keys also work)</dd>
+          <dt>Mouse</dt><dd>Look around</dd>
+          <dt>Shift</dt><dd>Run</dd>
+          <dt>Space</dt><dd>Jump</dd>
+          <dt>1 – 8</dt><dd>Jump to: street, foyer, living, stairs, lounge, master, terrace, cars</dd>
+          <dt>Esc</dt><dd>Release the mouse</dd>
+        </dl>
+        <button id="start" type="button">Enter the house</button>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
