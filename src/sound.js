@@ -157,7 +157,7 @@ export class Sound {
     const car = craft ? null : garage.car;
     const cabin = (car && !garage.chase) || (craft && !heli.chase);
 
-    set(this.nature.gain, !outside ? 0 : cabin ? 0.3 : car ? 0.55 : 0.8, 0.35);
+    set(this.nature.gain, craft || !outside ? 0 : cabin ? 0.3 : car ? 0.55 : 0.8, craft ? 0.08 : 0.35);
     set(this.muffle.frequency, cabin ? 1400 : 18000, 0.2);
 
     if (car !== this.car || craft !== this.craft) {

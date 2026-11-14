@@ -1,4 +1,5 @@
 import { ROADS, AREAS, FENCE, LOT, AREA_COLOR } from './world.js';
+import { COAST_AREAS, BEACHES } from './coast.js';
 
 // Round map in the corner of the HUD. You sit at the centre and the way you are facing (or the
 // car's nose) is up; an N on the rim shows north and a dot on the rim points home once the
@@ -7,16 +8,16 @@ import { ROADS, AREAS, FENCE, LOT, AREA_COLOR } from './world.js';
 const NORTH = (11 * Math.PI) / 180; // true north lies this far round from +x toward +z (see scripts/build-map.mjs)
 const WALK_RANGE = 70; // metres from the centre to the rim on foot
 const DRIVE_RANGE = 150; // ...and in a car, widening further with speed
-const FLY_RANGE = 320;
+const FLY_RANGE = 520;
 const WIDE_WALK = 520;
 const WIDE_DRIVE = 720;
-const WIDE_FLY = 1100;
+const WIDE_FLY = 2400;
 
 const box = (pts) => ({
   x0: Math.min(...pts.map((p) => p[0])), x1: Math.max(...pts.map((p) => p[0])),
   z0: Math.min(...pts.map((p) => p[1])), z1: Math.max(...pts.map((p) => p[1])),
 });
-const areas = AREAS.map((a) => ({ pts: a.pts, box: box(a.pts), color: `#${AREA_COLOR[a.kind].toString(16).padStart(6, '0')}` }));
+const areas = [...AREAS, ...COAST_AREAS].map((a) => ({ pts: a.pts, box: box(a.pts), color: `#${AREA_COLOR[a.kind].toString(16).padStart(6, '0')}` }));
 const roads = new Map(); // width -> roads, so each width is one stroke
 for (const r of ROADS) roads.set(r.w, [...(roads.get(r.w) || []), { pts: r.pts, box: box(r.pts) }]);
 const home = [(LOT[0][0] + LOT[2][0]) / 2, (LOT[0][1] + LOT[2][1]) / 2];
@@ -147,17 +148,20 @@ export class Minimap {
         ctx.stroke();
       }
     }
-    const [hx, hy] = toScreen(home[0] - x, home[1] - z);
-    const far = Math.hypot(hx, hy);
-    if (far > R - pin * 2.4) {
+    const rim = (wx, wz, r, fill) => {
+      const [sx, sy] = toScreen(wx - x, wz - z);
+      const dist = Math.hypot(sx, sy);
+      if (dist <= R - pin * 2.4) return;
       ctx.beginPath();
-      ctx.arc((hx / far) * (R - pin * 2.2), (hy / far) * (R - pin * 2.2), pin * 1.25, 0, Math.PI * 2);
-      ctx.fillStyle = this.accent;
+      ctx.arc((sx / dist) * (R - pin * 2.2), (sy / dist) * (R - pin * 2.2), r, 0, Math.PI * 2);
+      ctx.fillStyle = fill;
       ctx.fill();
       ctx.strokeStyle = this.ink;
       ctx.lineWidth = 1.5;
       ctx.stroke();
-    }
+    };
+    rim(home[0], home[1], pin * 1.25, this.accent);
+    for (const b of BEACHES) rim(b.x, b.z, pin, this.muted);
     const [nx, ny] = toScreen(Math.cos(NORTH) * range, Math.sin(NORTH) * range);
     ctx.font = `600 ${Math.max(12, Math.round(size * 0.038))}px ${this.fontFamily}`;
     ctx.textAlign = 'center';

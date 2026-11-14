@@ -14,6 +14,7 @@ import { Parked } from './parked.js';
 import { Sound } from './sound.js';
 import { Minimap } from './minimap.js';
 import { Helipad, PAD } from './heli.js';
+import { beachAt } from './coast.js';
 
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -26,7 +27,7 @@ renderer.toneMappingExposure = 0.8;
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xe9cfae, 90, 520);
-const camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.08, 900);
+const camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.08, 5200);
 
 // ---- Golden-hour sky + sun, matching the reference renders -----------------
 const sunDir = new THREE.Vector3(-0.62, 0.3, 0.72).normalize();
@@ -316,7 +317,8 @@ const INDOORS = new Set(['Stairs', 'Second floor', ...ROOMS.map((r) => r[0]).fil
 
 function currentRoom() {
   const { x, y, z } = player.pos;
-  if (heli.craft || y > H.grade + 4) return streetAt(x, z) || 'Los Reyes';
+  const coast = beachAt(x, z);
+  if (heli.craft || y > H.grade + 4) return coast || streetAt(x, z) || 'Los Reyes';
   const floor = y > 2.4 ? 1 : 0;
   const onStairs = x > -9 && x < -6.3 && z > -2 && z < 1.5 && y > 0.1 && y < 3.25;
   if (onStairs) return 'Stairs';
@@ -324,7 +326,7 @@ function currentRoom() {
     if (f === floor && x >= x0 && x <= x1 && z >= z0 && z <= z1) return name;
   }
   if (floor === 1) return 'Second floor';
-  return streetAt(x, z) || (pointInPolygon(x, z, LOT) ? 'Garden' : 'Los Reyes');
+  return coast || streetAt(x, z) || (pointInPolygon(x, z, LOT) ? 'Garden' : 'Los Reyes');
 }
 
 // Places to jump to, from the buttons on the start card or number keys 1-8.
@@ -388,6 +390,9 @@ function frame() {
   }
   updateDoors(player.pos, dt);
   focusShadows(player.pos);
+  const flying = !!heli.craft;
+  scene.fog.near = flying ? 220 : 90;
+  scene.fog.far = flying ? 3200 : 520;
   updateCarButtons();
   const place = currentRoom();
   sound.update(dt, !INDOORS.has(place), garage, heli);

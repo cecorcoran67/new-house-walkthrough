@@ -52,8 +52,8 @@ function touches(o, x, z, r, yLo, yHi) {
 }
 
 /** True when a circle of radius r at (x, z), spanning heights yLo..yHi, hits an obstacle or leaves the fence. */
-export function solidAt(x, z, r, yLo, yHi, skip) {
-  if (!insideFence(x, z)) return true;
+export function solidAt(x, z, r, yLo, yHi, skip, ignoreFence = false) {
+  if (!ignoreFence && !insideFence(x, z)) return true;
   for (const o of movers) if (o !== skip && touches(o, x, z, r, yLo, yHi)) return true;
   for (let i = Math.floor((x - r) / CELL); i <= Math.floor((x + r) / CELL); i++) {
     for (let j = Math.floor((z - r) / CELL); j <= Math.floor((z + r) / CELL); j++) {

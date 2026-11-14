@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { M, colorMat, drawnMaterial } from './materials.js';
 import { colliders } from './builder.js';
-import { movers, makeObb, solidAt } from './obstacles.js';
+import { movers, makeObb, solidAt, insideFence } from './obstacles.js';
+import { overWater } from './coast.js';
 import { H } from './house.js';
 
 // Flyable light helicopter on a pad at the owner's pin (9.946556, -84.275337).
@@ -11,8 +12,8 @@ import { H } from './house.js';
 
 export const PAD = { x: 37.6, z: 540.3, r: 16, heading: 0 };
 const FLOOR = H.grade + 0.04;
-const MAX_SPEED = 42; // m/s, about 150 km/h
-const MAX_ALT = 140;
+const MAX_SPEED = 52; // m/s, about 187 km/h — enough to reach the Pacific in a couple of minutes
+const MAX_ALT = 220;
 const CLIMB = 11;
 const GRAVITY = 9.2;
 
@@ -280,7 +281,9 @@ export class Helicopter {
     const r = 1.6;
     const lo = y + 0.4;
     const hi = y + 2.4;
-    if (solidAt(x, z, r, lo, hi, this.obb)) return true;
+    if (overWater(x, z) && y < FLOOR + 1.4) return true;
+    const skipFence = y > H.grade + 3.5 || !insideFence(this.x, this.z);
+    if (solidAt(x, z, r, lo, hi, this.obb, skipFence)) return true;
     if (Math.abs(x - 2) > 45 || Math.abs(z - 7) > 55) return false;
     for (const c of colliders) {
       if (c.y1 <= lo || c.y0 >= hi) continue;

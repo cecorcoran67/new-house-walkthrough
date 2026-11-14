@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { colliders } from './builder.js';
-import { solidAt } from './obstacles.js';
+import { solidAt, insideFence } from './obstacles.js';
+import { overWater } from './coast.js';
 
 const RADIUS = 0.28; // half-width of the walker
 const HEIGHT = 1.78; // body height used for head clearance
@@ -70,8 +71,10 @@ export class Player {
       if (c.y0 >= feetY + HEIGHT) continue; // above the head
       return true;
     }
-    // Neighbouring houses, trees, parked cars and the estate fence
-    return solidAt(x, z, RADIUS, feetY + STEP, feetY + HEIGHT);
+    // Neighbouring houses, trees, parked cars and the estate fence (the fence only
+    // applies while you are still inside Los Reyes, so a landing on the beach is walkable).
+    if (overWater(x, z)) return true;
+    return solidAt(x, z, RADIUS, feetY + STEP, feetY + HEIGHT, undefined, !insideFence(this.pos.x, this.pos.z));
   }
 
   // Highest walkable surface under the feet (within step-up range).

@@ -5,6 +5,7 @@ import { M, colorMat } from './materials.js';
 import { addObb, setFence, insideFence, pointInPolygon, solidAt } from './obstacles.js';
 import { H } from './house.js';
 import { helipadPrecinct } from './heli.js';
+import { buildCoast } from './coast.js';
 
 // The Los Reyes neighbourhood around the house: real streets, boundary and landscape from
 // OpenStreetMap (see scripts/build-map.mjs), with stand-in houses and trees. Everything is
@@ -131,7 +132,7 @@ function buildRoads(scene) {
   flatMesh(scene, lines, layerMat(0xd9b23a, 4, 0.7), G + 0.035);
 }
 
-export const AREA_COLOR = { golf: 0x6fa24f, park: 0x5c9447, pitch: 0x86b061, water: 0x3d7fae, wood: 0x35592d };
+export const AREA_COLOR = { golf: 0x6fa24f, park: 0x5c9447, pitch: 0x86b061, water: 0x3d7fae, wood: 0x35592d, sand: 0xe6d4a0 };
 function buildAreas(scene) {
   const byKind = {};
   for (const a of AREAS) polygonFill((byKind[a.kind] ||= []), a.pts);
@@ -437,6 +438,7 @@ export function buildWorld(scene) {
   buildLotEdges(scene);
   buildHouses(scene);
   const trees = buildTrees(scene);
+  buildCoast(scene);
   return { houses: houses.length, trees, roads: ROADS.length };
 }
 
