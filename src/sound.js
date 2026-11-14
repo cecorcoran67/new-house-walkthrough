@@ -33,8 +33,8 @@ const LEAD = 0.15; // where in the file a loop's cycle is taken to start
 // Each engine is two recordings, one idling and one revving, played faster or slower to follow
 // the revs and crossfaded between. The rpm figures are what the recordings were made at.
 const ENGINES = {
-  Tahoe: { idle: 'v8Idle', revs: 'v8Revs', idleRpm: 675, revsRpm: 2870, span: 2250 },
-  BJ30: { idle: 'i4Idle', revs: 'i4Revs', idleRpm: 750, revsRpm: 3220, span: 2500 },
+  v8: { idle: 'v8Idle', revs: 'v8Revs', idleRpm: 675, revsRpm: 2870, span: 2250 },
+  i4: { idle: 'i4Idle', revs: 'i4Revs', idleRpm: 750, revsRpm: 3220, span: 2500 },
 };
 const GEARS = [5, 9.5, 15, 22]; // road speed (m/s) at which each gear runs out of revs
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -135,12 +135,12 @@ export class Sound {
       this.play('door', 0.6);
       this.car = car;
       this.gear = 0;
-      if (car) this.rpm = ENGINES[car.name].idleRpm + 500;
+      if (car) this.rpm = ENGINES[car.spec.engine].idleRpm + 500;
     }
     set(this.motor.gain, car ? 0.6 : 0, 0.12);
     if (!car) return;
 
-    const e = ENGINES[car.name];
+    const e = ENGINES[car.spec.engine];
     const v = Math.abs(car.speed);
     if (this.gear < GEARS.length - 1 && v > GEARS[this.gear] * 0.9) this.gear++;
     else if (this.gear > 0 && v < GEARS[this.gear - 1] * 0.55) this.gear--;

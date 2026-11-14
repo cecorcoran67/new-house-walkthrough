@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildSUV, buildInterior, driverEye, carGlass } from './cars.js';
+import { buildCar, buildInterior, driverEye, carGlass } from './cars.js';
 import { colliders } from './builder.js';
 import { movers, makeObb, solidAt } from './obstacles.js';
 import { nearestRoad } from './world.js';
@@ -10,14 +10,23 @@ import { H } from './house.js';
 // A car's heading is its rotation about y; its nose points along (cos h, -sin h).
 
 const FLOOR = H.grade + 0.02; // wheels sit just proud of the ground so they clear the paving
-const NAMES = { tahoe: 'Tahoe', bj30: 'BJ30' };
-const TOP_SPEED = 19.5; // m/s on tarmac (70 km/h)
 const OFF_ROAD = 9; // m/s on grass
 const REVERSE = 6;
 const COAST = 7; // m/s² of braking once the controls are let go
 const GRIP = 6.5; // m/s² of cornering the steering will ask for
 
+/** Someone on foot that moving cars must not run over; traffic.js keeps it up to date. */
+export const walker = { on: false, x: 0, z: 0 };
+
+let blob = null;
 function blobShadow(s) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(s.L + 1, s.W + 0.9), (blob ||= blobMaterial()));
+  m.rotation.x = -Math.PI / 2;
+  m.position.y = 0.02;
+  return m;
+}
+
+function blobMaterial() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const ctx = c.getContext('2d');
@@ -27,28 +36,24 @@ function blobShadow(s) {
   g.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 64, 64);
-  const mat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -24 });
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(s.L + 1, s.W + 0.9), mat);
-  m.rotation.x = -Math.PI / 2;
-  m.position.y = 0.02;
-  return m;
+  return new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -24 });
 }
 
-class Car {
-  constructor(scene, kind, x, z) {
-    const { group, spec } = buildSUV(kind);
-    this.name = NAMES[kind];
+export class Car {
+  constructor(scene, kind, x, z, paint) {
+    const { group, spec } = buildCar(kind, paint);
+    this.name = spec.name;
     this.spec = spec;
     this.group = group;
     this.home = { x, z, heading: Math.PI / 2 }; // nose toward the house
-    this.interior = buildInterior(spec);
+    this.interior = null; // fitted the first time someone gets in
     this.glass = [];
     // The sun's shadow map is rendered once, so moving cars carry a soft blob shadow instead.
     group.traverse((o) => {
       o.castShadow = false;
       if (o.material === carGlass) this.glass.push(o);
     });
-    group.add(this.interior, blobShadow(spec));
+    group.add(blobShadow(spec));
     this.obb = makeObb(x, z, spec.L / 2, spec.W / 2, 0, FLOOR, FLOOR + spec.Ht);
     movers.push(this.obb);
     scene.add(group);
@@ -58,7 +63,21 @@ class Car {
 
   reset() {
     Object.assign(this, this.home, { speed: 0, steer: 0, load: 0, paved: true, bump: 0 }); // the last three feed sound.js
+    this.lights(false, false);
     this.place();
+  }
+
+  /** Brake lamps glow brighter than the running lamps; the white reversing lamps only light in reverse. */
+  lights(brake, reverse) {
+    const { tail, backup } = this.group.userData.lamps;
+    tail.emissive.setHex(brake ? 0xff2a14 : 0x9c0a06);
+    tail.emissiveIntensity = brake ? 2.6 : 0.7;
+    backup.emissiveIntensity = reverse ? 2.2 : 0;
+  }
+
+  /** Steering lock available at the current speed: less when fast, so cornering grip stays the same. */
+  get lock() {
+    return Math.min(0.6, Math.atan((this.spec.wb * GRIP) / Math.max(this.speed * this.speed, 0.01)));
   }
 
   place() {
@@ -69,7 +88,8 @@ class Car {
 
   /** Show the cabin fittings and hide the tinted glass (or the reverse, for outside views). */
   cockpit(on) {
-    this.interior.visible = on;
+    if (on && !this.interior) this.group.add((this.interior = buildInterior(this.spec)));
+    if (this.interior) this.interior.visible = on;
     for (const g of this.glass) g.visible = !on;
   }
 
@@ -86,10 +106,13 @@ class Car {
     const reach = this.spec.L / 2 - r;
     const lo = FLOOR + 0.3; // anything lower is a kerb the tyres ride over
     const hi = FLOOR + 1.6;
+    const atHome = Math.abs(x - 2) < 45 && Math.abs(z - 7) < 55; // only then can it meet the house or the pool
     for (const k of [-1, 0, 1]) {
       const cx = x + Math.cos(heading) * reach * k;
       const cz = z - Math.sin(heading) * reach * k;
       if (solidAt(cx, cz, r, lo, hi, this.obb)) return true;
+      if (walker.on && Math.hypot(cx - walker.x, cz - walker.z) < r + 0.4) return true;
+      if (!atHome) continue;
       if (cx + r > POOL.x0 && cx - r < POOL.x1 && cz + r > POOL.z0 && cz - r < POOL.z1) return true;
       for (const c of colliders) {
         if (c.y1 <= lo || c.y0 >= hi) continue;
@@ -107,21 +130,22 @@ class Car {
     let v = this.speed;
     const road = nearestRoad(this.x, this.z);
     const paved = (road && road.d < road.road.w / 2 + 0.8) || (this.x > 3 && this.x < 14.6 && this.z > 7 && this.z < 23);
-    const top = paved ? TOP_SPEED : OFF_ROAD;
+    const top = paved ? s.top : OFF_ROAD;
     this.paved = paved;
-    const braking = handbrake || (throttle > 0 ? v < -0.3 : v > 0.3);
-    this.load = braking ? 0 : Math.abs(throttle); // how hard the engine is pulling
+    const braking = handbrake || (throttle > 0 ? v < -0.3 : throttle < 0 ? v > 0.3 : Math.abs(v) > 0.3);
+    const reversing = !handbrake && (throttle < 0 ? v <= 0.3 : v < -0.3);
+    this.load = braking || !throttle ? 0 : Math.abs(throttle); // how hard the engine is pulling
+    this.lights(braking || reversing, reversing);
 
     if (handbrake) v -= Math.sign(v) * Math.min(Math.abs(v), 14 * dt);
-    else if (throttle > 0) v += (v < -0.3 ? 9 : 4.2 * (1 - Math.max(0, v) / (top * 1.05))) * throttle * dt;
+    else if (throttle > 0) v += (v < -0.3 ? 9 : s.accel * (1 - Math.max(0, v) / (top * 1.05))) * throttle * dt;
     else if (throttle < 0) v += (v > 0.3 ? 9 : 3 * (1 - Math.max(0, -v) / REVERSE)) * throttle * dt;
     else v -= Math.sign(v) * Math.min(Math.abs(v), COAST * dt); // hands off the controls: brake to a stop
     v -= Math.sign(v) * Math.min(Math.abs(v), 0.3 * dt); // rolling drag
     if (Math.abs(v) > top) v -= Math.sign(v) * Math.min(Math.abs(v) - top, 8 * dt); // grass slows you down
 
     // Less lock at speed, so the car asks for the same cornering grip throughout
-    const lock = Math.min(0.6, Math.atan((s.wb * GRIP) / Math.max(v * v, 0.01)));
-    this.steer += (steer * lock - this.steer) * Math.min(1, dt * 7);
+    this.steer += (steer * this.lock - this.steer) * Math.min(1, dt * 7);
 
     const d = v * dt;
     if (d !== 0) {
@@ -142,7 +166,7 @@ class Car {
       w.grp.rotation.z -= d / s.wheelR;
       if (w.front) w.grp.rotation.y = this.steer;
     }
-    this.interior.userData.steering.rotation.z = -this.steer * 7;
+    if (this.interior) this.interior.userData.steering.rotation.z = -this.steer * 7;
   }
 }
 
@@ -150,7 +174,8 @@ export class Garage {
   constructor(scene, camera, player) {
     this.camera = camera;
     this.player = player;
-    this.cars = [new Car(scene, 'tahoe', 5.05, 11.0), new Car(scene, 'bj30', 8.45, 10.8)];
+    this.homeCars = [new Car(scene, 'tahoe', 5.05, 11.0), new Car(scene, 'bj30', 8.45, 10.8)];
+    this.cars = [...this.homeCars]; // traffic.js adds the cars out on the estate, which can be driven too
     this.car = null; // the one being driven
     this.chase = false; // outside view instead of the driver's seat
     this.chaseHeading = 0;
@@ -180,6 +205,7 @@ export class Garage {
   enter(car) {
     if (!car) return false;
     this.car = car;
+    car.bump = 0;
     this.chaseHeading = car.heading;
     Object.assign(this.player, { yaw: 0, pitch: 0 }); // now the look offset from straight ahead
     car.cockpit(!this.chase);
@@ -192,11 +218,17 @@ export class Garage {
     const spots = [car.local(0.3, -side), car.local(0.3, side), car.local(-car.spec.L / 2 - 0.8, 0), car.local(car.spec.L / 2 + 0.8, 0)];
     const spot = spots.find(([x, z]) => !this.player.blocked(x, H.grade, z));
     if (!spot) return false; // boxed in on every side
-    car.speed = 0;
-    car.cockpit(false);
-    this.car = null;
+    this.leave();
     this.player.teleport(spot[0], H.grade, spot[1], car.heading - Math.PI / 2);
     return true;
+  }
+
+  /** Switch off and step away from the car being driven. */
+  leave() {
+    this.car.speed = 0;
+    this.car.lights(false, false);
+    this.car.cockpit(false);
+    this.car = null;
   }
 
   toggleView() {
@@ -204,14 +236,10 @@ export class Garage {
     this.car?.cockpit(!this.chase);
   }
 
-  /** Abandon the car being driven (if any) and bring back any car left out on the estate. */
+  /** Abandon the car being driven (if any) and bring back either of the house's cars left out on the estate. */
   recall() {
-    if (this.car) {
-      this.car.cockpit(false);
-      this.car.speed = 0;
-      this.car = null;
-    }
-    for (const car of this.cars) if (Math.hypot(car.x - car.home.x, car.z - car.home.z) > 60) car.reset();
+    if (this.car) this.leave();
+    for (const car of this.homeCars) if (Math.hypot(car.x - car.home.x, car.z - car.home.z) > 60) car.reset();
   }
 
   update(dt) {

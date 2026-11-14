@@ -9,6 +9,7 @@ import { initTouch } from './touch.js';
 import { buildWorld, streetAt, LOT, attribution } from './world.js';
 import { pointInPolygon } from './obstacles.js';
 import { Garage } from './drive.js';
+import { Traffic } from './traffic.js';
 import { Sound } from './sound.js';
 import { Minimap } from './minimap.js';
 
@@ -147,6 +148,7 @@ const world = buildWorld(scene);
 
 const player = new Player(camera, canvas);
 const garage = new Garage(scene, camera, player);
+const traffic = new Traffic(scene, camera, garage, player);
 
 // ---- HUD -------------------------------------------------------------------
 const overlay = document.getElementById('overlay');
@@ -280,6 +282,7 @@ let lastRoom = '';
 renderer.shadowMap.autoUpdate = false;
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
+  traffic.update(dt);
   if (garage.car) garage.update(dt);
   else player.update(dt);
   updateDoors(player.pos, dt);
@@ -298,7 +301,7 @@ function frame() {
 renderer.setAnimationLoop(frame);
 
 // Exposed for debugging / automated checks from the console.
-window.__house = { scene, camera, renderer, player, garage, sound, world, colliders, doors, THREE };
+window.__house = { scene, camera, renderer, player, garage, traffic, sound, world, colliders, doors, THREE };
 // Debug camera: __house.cam(x, y, z, lookX, lookY, lookZ) parks a free camera; __house.walk() resumes walking.
 const walkUpdate = player.update.bind(player);
 window.__house.cam = (x, y, z, tx, ty, tz) => {
