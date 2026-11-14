@@ -165,7 +165,7 @@ function enter() {
   else player.lock();
 }
 document.getElementById('start').addEventListener('click', enter);
-document.getElementById('credit').textContent = attribution;
+document.getElementById('credit').textContent = `${attribution} · Sounds: freesound.org (CC0)`;
 
 // Getting in and out of the cars: E on a keyboard, or the button that appears beside a car.
 const actBtn = document.getElementById('act');
