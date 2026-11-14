@@ -10,6 +10,7 @@ import { buildWorld, streetAt, LOT, attribution } from './world.js';
 import { pointInPolygon } from './obstacles.js';
 import { Garage } from './drive.js';
 import { Sound } from './sound.js';
+import { Minimap } from './minimap.js';
 
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -150,6 +151,7 @@ const garage = new Garage(scene, camera, player);
 // ---- HUD -------------------------------------------------------------------
 const overlay = document.getElementById('overlay');
 const roomLabel = document.getElementById('room');
+const minimap = new Minimap(document.getElementById('map'));
 initTouch(player, canvas, document.getElementById('stick'));
 
 // Phones and tablets have no pointer lock (iOS Safari lacks the API entirely), so they get
@@ -285,6 +287,7 @@ function frame() {
   updateCarButtons();
   const place = currentRoom();
   sound.update(dt, !INDOORS.has(place), garage);
+  minimap.draw(dt, player.pos.x, player.pos.z, garage.car ? garage.car.heading - Math.PI / 2 : player.yaw, garage);
   const room = garage.car ? `${place} · ${Math.round(Math.abs(garage.car.speed) * 3.6)} km/h` : place;
   if (room !== lastRoom) {
     roomLabel.textContent = room;

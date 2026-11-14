@@ -16,10 +16,10 @@ const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 const pick = (list) => list[Math.floor(rnd() * list.length)];
 
 export const LOT = pairs(map.lot); // street-left, street-right, rear-right, rear-left
-const ROADS = map.roads.map((r) => ({ name: r.n, w: r.w, pts: pairs(r.p) }));
+export const ROADS = map.roads.map((r) => ({ name: r.n, w: r.w, pts: pairs(r.p) }));
 const LOTS = map.lots.map((l) => ({ vacant: !!l.v, pts: pairs(l.p) }));
-const AREAS = map.areas.map((a) => ({ kind: a.k, pts: pairs(a.p) }));
-const FENCE = pairs(map.boundary);
+export const AREAS = map.areas.map((a) => ({ kind: a.k, pts: pairs(a.p) }));
+export const FENCE = pairs(map.boundary);
 
 // ---- Road lookup -------------------------------------------------------------------------
 const RCELL = 40;
@@ -129,7 +129,7 @@ function buildRoads(scene) {
   flatMesh(scene, lines, layerMat(0xd9b23a, 4, 0.7), G + 0.035);
 }
 
-const AREA_COLOR = { golf: 0x6fa24f, park: 0x5c9447, pitch: 0x86b061, water: 0x3d7fae, wood: 0x35592d };
+export const AREA_COLOR = { golf: 0x6fa24f, park: 0x5c9447, pitch: 0x86b061, water: 0x3d7fae, wood: 0x35592d };
 function buildAreas(scene) {
   const byKind = {};
   for (const a of AREAS) polygonFill((byKind[a.kind] ||= []), a.pts);

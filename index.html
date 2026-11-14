@@ -19,6 +19,7 @@
         --hud-tap: 44px; /* smallest comfortable touch target */
         --hud-stick: 128px;
         --hud-knob: 56px;
+        --hud-map: 160px;
         --hud-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       }
       html, body { margin: 0; height: 100%; overflow: hidden; background: #14110f; font-family: var(--hud-font); color: var(--hud-fg); }
@@ -34,6 +35,14 @@
         position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
         border-radius: 50%; background: rgba(255, 255, 255, 0.75); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); pointer-events: none;
       }
+      /* Mini map: top right, tucked under the Menu button on touch screens */
+      @media (max-width: 720px), (max-height: 480px) { :root { --hud-map: 112px; } }
+      #map {
+        position: fixed; right: calc(var(--hud-space-2) + env(safe-area-inset-right)); top: calc(var(--hud-space-2) + env(safe-area-inset-top));
+        width: var(--hud-map); height: var(--hud-map); border-radius: 50%; box-sizing: border-box;
+        background: var(--hud-bg); border: 2px solid var(--hud-muted); pointer-events: none;
+      }
+      .touch #map { top: calc(var(--hud-space-2) + var(--hud-tap) + var(--hud-space-1) + env(safe-area-inset-top)); }
       /* Touch controls: only shown on touch screens (body.touch). */
       #stick, #menu { display: none; }
       .touch #stick {
@@ -101,6 +110,7 @@
     <canvas id="scene"></canvas>
     <div id="crosshair" aria-hidden="true"></div>
     <div id="room" role="status" aria-live="polite">Garden</div>
+    <canvas id="map" aria-hidden="true"></canvas>
     <div id="stick" aria-label="Walk joystick"><i></i></div>
     <button id="menu" class="hud-btn" type="button">Menu</button>
     <div id="car">
