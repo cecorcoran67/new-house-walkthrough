@@ -14,6 +14,7 @@ const NAMES = { tahoe: 'Tahoe', bj30: 'BJ30' };
 const TOP_SPEED = 19.5; // m/s on tarmac (70 km/h)
 const OFF_ROAD = 9; // m/s on grass
 const REVERSE = 6;
+const COAST = 7; // m/s² of braking once the controls are let go
 const GRIP = 6.5; // m/s² of cornering the steering will ask for
 
 function blobShadow(s) {
@@ -56,7 +57,7 @@ class Car {
   }
 
   reset() {
-    Object.assign(this, this.home, { speed: 0, steer: 0 });
+    Object.assign(this, this.home, { speed: 0, steer: 0, load: 0, paved: true, bump: 0 }); // the last three feed sound.js
     this.place();
   }
 
@@ -107,11 +108,15 @@ class Car {
     const road = nearestRoad(this.x, this.z);
     const paved = (road && road.d < road.road.w / 2 + 0.8) || (this.x > 3 && this.x < 14.6 && this.z > 7 && this.z < 23);
     const top = paved ? TOP_SPEED : OFF_ROAD;
+    this.paved = paved;
+    const braking = handbrake || (throttle > 0 ? v < -0.3 : v > 0.3);
+    this.load = braking ? 0 : Math.abs(throttle); // how hard the engine is pulling
 
     if (handbrake) v -= Math.sign(v) * Math.min(Math.abs(v), 14 * dt);
     else if (throttle > 0) v += (v < -0.3 ? 9 : 4.2 * (1 - Math.max(0, v) / (top * 1.05))) * throttle * dt;
     else if (throttle < 0) v += (v > 0.3 ? 9 : 3 * (1 - Math.max(0, -v) / REVERSE)) * throttle * dt;
-    v -= Math.sign(v) * Math.min(Math.abs(v), (throttle === 0 ? 1.2 : 0.3) * dt); // rolling drag, engine braking
+    else v -= Math.sign(v) * Math.min(Math.abs(v), COAST * dt); // hands off the controls: brake to a stop
+    v -= Math.sign(v) * Math.min(Math.abs(v), 0.3 * dt); // rolling drag
     if (Math.abs(v) > top) v -= Math.sign(v) * Math.min(Math.abs(v) - top, 8 * dt); // grass slows you down
 
     // Less lock at speed, so the car asks for the same cornering grip throughout
@@ -125,8 +130,10 @@ class Car {
       const [rx, rz] = this.local(-s.wb / 2 + d, 0);
       const x = rx + (Math.cos(heading) * s.wb) / 2;
       const z = rz - (Math.sin(heading) * s.wb) / 2;
-      if (this.blocked(x, z, heading)) v = Math.abs(v) < 1 ? 0 : -v * 0.2;
-      else Object.assign(this, { x, z, heading });
+      if (this.blocked(x, z, heading)) {
+        this.bump = Math.abs(v);
+        v = Math.abs(v) < 1 ? 0 : -v * 0.2;
+      } else Object.assign(this, { x, z, heading });
     }
     this.speed = v;
     this.place();

@@ -9,6 +9,7 @@ import { initTouch } from './touch.js';
 import { buildWorld, streetAt, LOT, attribution } from './world.js';
 import { pointInPolygon } from './obstacles.js';
 import { Garage } from './drive.js';
+import { Sound } from './sound.js';
 
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -184,6 +185,18 @@ function updateCarButtons() {
   if (label && actBtn.dataset.label !== label) actBtn.firstElementChild.textContent = actBtn.dataset.label = label;
 }
 
+// Sound can only start from a tap, click or key press; M or the button on the start card mutes it.
+const sound = new Sound();
+for (const type of ['pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(type, () => sound.unlock(), true);
+document.addEventListener('visibilitychange', () => sound.pause(document.hidden));
+const soundBtn = document.getElementById('sound');
+function toggleSound() {
+  sound.setMuted(!sound.muted);
+  soundBtn.textContent = sound.muted ? 'Sound off' : 'Sound on';
+}
+soundBtn.addEventListener('click', toggleSound);
+document.addEventListener('keydown', (e) => e.code === 'KeyM' && !e.repeat && toggleSound());
+
 document.getElementById('menu').addEventListener('click', () => overlay.classList.remove('hidden'));
 canvas.addEventListener('click', () => touchMode || player.lock());
 player.onLockChange = (locked) => overlay.classList.toggle('hidden', locked);
@@ -202,6 +215,9 @@ const ROOMS = [
   ['Master bedroom', 3, 8.2, -8, -1.4, 1], ['Master bath', 8.2, 12, -8, -4.6, 1], ['Master closet', 8.2, 12, -4.6, -1.4, 1],
   ['Master balcony', 3, 12, -9.5, -8, 1], ['Bedroom 3', 3, 8.5, 0.6, 7.5, 1], ['Bath 3', 8.5, 12, 0.6, 4, 1], ['Closet 3', 8.5, 12, 4, 7.5, 1],
 ];
+// Everywhere under the roof and behind glass; the rest of ROOMS (terrace, carport, pool...) is open air.
+const OPEN_AIR = ['Covered terrace', 'Carport', 'Entry porch', 'Pool', 'Gazebo', 'Fire pit', 'Master balcony'];
+const INDOORS = new Set(['Stairs', 'Second floor', ...ROOMS.map((r) => r[0]).filter((name) => !OPEN_AIR.includes(name))]);
 
 function currentRoom() {
   const { x, y, z } = player.pos;
@@ -267,7 +283,9 @@ function frame() {
   updateDoors(player.pos, dt);
   focusShadows(player.pos);
   updateCarButtons();
-  const room = garage.car ? `${currentRoom()} · ${Math.round(Math.abs(garage.car.speed) * 3.6)} km/h` : currentRoom();
+  const place = currentRoom();
+  sound.update(dt, !INDOORS.has(place), garage);
+  const room = garage.car ? `${place} · ${Math.round(Math.abs(garage.car.speed) * 3.6)} km/h` : place;
   if (room !== lastRoom) {
     roomLabel.textContent = room;
     lastRoom = room;
@@ -277,7 +295,7 @@ function frame() {
 renderer.setAnimationLoop(frame);
 
 // Exposed for debugging / automated checks from the console.
-window.__house = { scene, camera, renderer, player, garage, world, colliders, doors, THREE };
+window.__house = { scene, camera, renderer, player, garage, sound, world, colliders, doors, THREE };
 // Debug camera: __house.cam(x, y, z, lookX, lookY, lookZ) parks a free camera; __house.walk() resumes walking.
 const walkUpdate = player.update.bind(player);
 window.__house.cam = (x, y, z, tx, ty, tz) => {
