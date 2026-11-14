@@ -7,6 +7,7 @@ import { ROADS, AREAS, FENCE, LOT, AREA_COLOR } from './world.js';
 const NORTH = (11 * Math.PI) / 180; // true north lies this far round from +x toward +z (see scripts/build-map.mjs)
 const WALK_RANGE = 70; // metres from the centre to the rim on foot
 const DRIVE_RANGE = 150; // ...and in a car, widening further with speed
+const FLY_RANGE = 320;
 
 const box = (pts) => ({
   x0: Math.min(...pts.map((p) => p[0])), x1: Math.max(...pts.map((p) => p[0])),
@@ -39,11 +40,15 @@ export class Minimap {
     this.canvas.width = this.canvas.height = Math.round(this.size * this.dpr);
   }
 
-  /** Draw the map around (x, z) with `yaw` facing up. `garage` supplies the cars. */
-  draw(dt, x, z, yaw, garage) {
+  /** Draw the map around (x, z) with `yaw` facing up. `garage` supplies the cars; `heli` the helicopter. */
+  draw(dt, x, z, yaw, garage, heli) {
     const { ctx, size, dpr, range } = this;
     const R = size / 2;
-    const want = garage.car ? DRIVE_RANGE + Math.abs(garage.car.speed) * 5 : WALK_RANGE;
+    const want = heli?.craft
+      ? FLY_RANGE + Math.abs(heli.craft.speed) * 6
+      : garage.car
+        ? DRIVE_RANGE + Math.abs(garage.car.speed) * 5
+        : WALK_RANGE;
     this.range += (want - range) * Math.min(1, dt * 2);
     const s = R / range; // pixels per metre
     const cos = Math.cos(yaw);
@@ -92,12 +97,14 @@ export class Minimap {
     ctx.globalAlpha = 0.35;
     ctx.fill();
     ctx.globalAlpha = 1;
-    // Parked cars, drawn no smaller than a few pixels
-    ctx.fillStyle = this.fg;
-    ctx.strokeStyle = this.ink;
-    ctx.lineWidth = 1 / s;
-    for (const car of garage.cars) {
-      if (car === garage.car) continue;
+    // Other cars (parked at the house, and traffic out on the streets). Dark fill so they
+    // read against the cream roads; skip any that have not been given a street yet.
+    const others = garage.cars.filter((car) => car !== garage.car && !(car.bot && !car.bot.placed));
+    ctx.fillStyle = this.ink;
+    ctx.strokeStyle = this.fg;
+    ctx.lineWidth = 1.5 / s;
+    for (const car of others) {
+      if ((car.x - x) ** 2 + (car.z - z) ** 2 > range * range) continue;
       const l = Math.max(car.spec.L, 6 / s);
       const w = Math.max(car.spec.W, 3.5 / s);
       ctx.save();
@@ -107,9 +114,52 @@ export class Minimap {
       ctx.strokeRect(-l / 2, -w / 2, l, w);
       ctx.restore();
     }
+    const pad = heli?.heli;
+    if (pad && heli.craft !== pad) {
+      ctx.save();
+      ctx.translate(pad.x, pad.z);
+      ctx.rotate(-pad.heading);
+      ctx.fillStyle = this.accent;
+      ctx.strokeStyle = this.ink;
+      ctx.lineWidth = 1.5 / s;
+      ctx.beginPath();
+      ctx.moveTo(6, 0);
+      ctx.lineTo(-4, 3.5);
+      ctx.lineTo(-2, 0);
+      ctx.lineTo(-4, -3.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
     ctx.restore();
 
     ctx.translate(R, R);
+    // Cars off the map, pinned to the rim so you can still find them
+    ctx.fillStyle = this.ink;
+    ctx.strokeStyle = this.fg;
+    ctx.lineWidth = 1.5;
+    for (const car of others) {
+      const [cx, cy] = toScreen(car.x - x, car.z - z);
+      const far = Math.hypot(cx, cy);
+      if (far <= R - 8) continue;
+      ctx.beginPath();
+      ctx.arc((cx / far) * (R - 9), (cy / far) * (R - 9), 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    if (pad && heli.craft !== pad) {
+      const [hx, hy] = toScreen(pad.x - x, pad.z - z);
+      const farH = Math.hypot(hx, hy);
+      if (farH > R - 8) {
+        ctx.beginPath();
+        ctx.arc((hx / farH) * (R - 9), (hy / farH) * (R - 9), 4, 0, Math.PI * 2);
+        ctx.fillStyle = this.accent;
+        ctx.fill();
+        ctx.strokeStyle = this.ink;
+        ctx.stroke();
+      }
+    }
     // Home, pinned to the rim when it is off the map
     const [hx, hy] = toScreen(home[0] - x, home[1] - z);
     const far = Math.hypot(hx, hy);

@@ -84,6 +84,12 @@ const SPECS = {
     cowl: 1.4, wsTop: 2.05, rearTop: 1.5, rearBase: 0.1, noseDrop: 0.12, sill: 0.16, pillars: [-0.4, -0.95], blindRear: true,
     metalness: 0.5, env: 1, lamps: 'round', seats: 2, top: 30, accel: 6.5, engine: 'v8', pace: 11,
   }),
+  // 2020- Chevrolet Corvette C8 Stingray: 4630 x 1934 x 1234 mm, 2722 mm wheelbase. Mid-engined, long hood, full-width tail bar.
+  c8: spec({
+    name: 'Corvette', L: 4.63, W: 1.93, Ht: 1.23, wb: 2.72, wheelR: 0.335, gap: 0.04, belt: 0.76, hood: 0.68, roof: 1.2,
+    cowl: 1.55, wsTop: 2.4, rearTop: 0.95, rearBase: 0.32, noseDrop: 0.16, sill: 0.22, pillars: [-0.45],
+    paint: 0xc41e3a, metalness: 0.5, env: 1.1, face: 'c8', lamps: 'slim', seats: 2, top: 32, accel: 7.4, engine: 'v8', pace: 12,
+  }),
 };
 // Costa Rican taxis are red saloons with a yellow roof sign.
 SPECS.taxi = { ...SPECS.sedan, name: 'taxi', paint: 0xc4161c, sign: true };
@@ -420,6 +426,25 @@ export function buildCar(kind, paint) {
     label(g, 'TAHOE', 0.34, 0.075, rearX - 0.006, s.belt - 0.38, s.W / 2 - 0.42, -1);
     plate(hx + 0.035, 1);
     plate(-hx - 0.035, -1);
+  } else if (s.face === 'c8') {
+    // Sharp nose with a wide lower intake, slim C-shaped corner lamps and a gold bowtie
+    const noseY = s.hood - s.noseDrop - 0.06;
+    bx(g, 0.04, 0.05, s.W - 0.7, hx - 0.002, noseY - 0.02, 0, M.black);
+    bx(g, 0.06, 0.16, s.W * 0.78, hx + 0.008, base + 0.2, 0, M.black);
+    bowtie(g, frontX + 0.02, noseY + 0.01, 0, 1);
+    for (const side of [1, -1]) {
+      bx(g, 0.05, 0.055, 0.46, frontX, noseY - 0.05, side * (s.W / 2 - 0.3), headlamp);
+      bx(g, 0.04, 0.05, 0.16, frontX, base + 0.2, side * (s.W / 2 - 0.42), headlamp);
+    }
+    // Full-width tail bar, twin central exhausts, engine-cover vents
+    bx(g, 0.05, 0.055, s.W - 0.12, rearX, s.belt - 0.06, 0, tail);
+    bx(g, 0.052, 0.045, 0.14, rearX - 0.002, s.belt - 0.18, 0, backup);
+    bowtie(g, rearX - 0.012, s.belt - 0.28, 0, -1);
+    label(g, 'CORVETTE', 0.42, 0.06, rearX - 0.006, s.belt - 0.38, 0, -1);
+    for (const side of [1, -1]) {
+      disc(g, 0.04, rearX - 0.01, base + 0.14, side * 0.18, M.chrome);
+      bx(g, 0.28, 0.035, 0.32, -hx + 0.62, s.roof - 0.01, side * (s.W / 2 - 0.3), cladding);
+    }
   } else {
     plainFace(g, s, base, tail, backup);
   }

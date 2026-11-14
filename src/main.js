@@ -10,8 +10,10 @@ import { buildWorld, streetAt, LOT, attribution } from './world.js';
 import { pointInPolygon } from './obstacles.js';
 import { Garage } from './drive.js';
 import { Traffic } from './traffic.js';
+import { Parked } from './parked.js';
 import { Sound } from './sound.js';
 import { Minimap } from './minimap.js';
+import { Helipad } from './heli.js';
 
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -149,6 +151,8 @@ const world = buildWorld(scene);
 const player = new Player(camera, canvas);
 const garage = new Garage(scene, camera, player);
 const traffic = new Traffic(scene, camera, garage, player);
+const parked = new Parked(scene, camera, garage, player);
+const heli = new Helipad(scene, camera, player);
 
 // ---- HUD -------------------------------------------------------------------
 const overlay = document.getElementById('overlay');
@@ -174,18 +178,56 @@ document.getElementById('credit').textContent = `${attribution} · Sounds: frees
 // Getting in and out of the cars: E on a keyboard, or the button that appears beside a car.
 const actBtn = document.getElementById('act');
 const viewBtn = document.getElementById('view');
-actBtn.addEventListener('click', () => garage.toggle());
-viewBtn.addEventListener('click', () => garage.toggleView());
+function riding() {
+  return heli.craft || garage.car;
+}
+function toggleRide() {
+  if (heli.craft) return heli.toggle();
+  if (garage.car) return garage.toggle();
+  const h = heli.nearby();
+  const c = garage.nearby();
+  if (h && (!c || Math.hypot(player.pos.x - h.x, player.pos.z - h.z) <= Math.hypot(player.pos.x - c.x, player.pos.z - c.z))) {
+    return heli.enter();
+  }
+  return garage.toggle();
+}
+function toggleView() {
+  if (heli.craft) heli.toggleView();
+  else garage.toggleView();
+}
+actBtn.addEventListener('click', () => toggleRide());
+viewBtn.addEventListener('click', () => toggleView());
 document.addEventListener('keydown', (e) => {
   if (e.repeat) return;
-  if (e.code === 'KeyE') garage.toggle();
-  if (e.code === 'KeyC') garage.toggleView();
+  if (e.code === 'KeyE') toggleRide();
+  if (e.code === 'KeyC') toggleView();
 });
+const climbBtn = document.getElementById('climb');
+const downBtn = document.getElementById('down');
+const hold = (btn, dir) => {
+  const set = (on) => { heli.touchClimb = on ? dir : (heli.touchClimb === dir ? 0 : heli.touchClimb); };
+  btn.addEventListener('pointerdown', (e) => { e.preventDefault(); set(true); });
+  btn.addEventListener('pointerup', () => set(false));
+  btn.addEventListener('pointerleave', () => set(false));
+  btn.addEventListener('pointercancel', () => set(false));
+};
+hold(climbBtn, 1);
+hold(downBtn, -1);
 function updateCarButtons() {
-  const near = garage.car ? null : garage.nearby();
-  const label = garage.car ? 'Get out' : near ? `Drive the ${near.name}` : '';
+  const nearHeli = !riding() && heli.nearby();
+  const nearCar = !riding() && garage.nearby();
+  const label = heli.craft
+    ? (heli.heli.airborne ? 'Land to get out' : 'Get out')
+    : garage.car
+      ? 'Get out'
+      : nearHeli
+        ? 'Fly the helicopter'
+        : nearCar
+          ? `Drive the ${nearCar.name}`
+          : '';
   actBtn.hidden = !label;
-  viewBtn.hidden = !garage.car;
+  viewBtn.hidden = !riding();
+  climbBtn.hidden = downBtn.hidden = !(heli.craft && touchMode);
   if (label && actBtn.dataset.label !== label) actBtn.firstElementChild.textContent = actBtn.dataset.label = label;
 }
 
@@ -225,6 +267,7 @@ const INDOORS = new Set(['Stairs', 'Second floor', ...ROOMS.map((r) => r[0]).fil
 
 function currentRoom() {
   const { x, y, z } = player.pos;
+  if (heli.craft || y > H.grade + 4) return streetAt(x, z) || 'Los Reyes';
   const floor = y > 2.4 ? 1 : 0;
   const onStairs = x > -9 && x < -6.3 && z > -2 && z < 1.5 && y > 0.1 && y < 3.25;
   if (onStairs) return 'Stairs';
@@ -253,6 +296,7 @@ SPOTS.forEach(([name, ...spot], i) => {
   b.textContent = name;
   const go = () => {
     garage.recall(); // step out of any car, and bring cars left out on the estate back home
+    heli.recall();
     player.teleport(...spot);
   };
   b.addEventListener('click', () => {
@@ -282,16 +326,35 @@ let lastRoom = '';
 renderer.shadowMap.autoUpdate = false;
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
+  parked.update();
   traffic.update(dt);
-  if (garage.car) garage.update(dt);
-  else player.update(dt);
+  if (heli.craft) heli.update(dt);
+  else {
+    heli.heli.spin(dt, 0.1);
+    if (garage.car) garage.update(dt);
+    else player.update(dt);
+  }
   updateDoors(player.pos, dt);
   focusShadows(player.pos);
   updateCarButtons();
   const place = currentRoom();
-  sound.update(dt, !INDOORS.has(place), garage);
-  minimap.draw(dt, player.pos.x, player.pos.z, garage.car ? garage.car.heading - Math.PI / 2 : player.yaw, garage);
-  const room = garage.car ? `${place} · ${Math.round(Math.abs(garage.car.speed) * 3.6)} km/h` : place;
+  sound.update(dt, !INDOORS.has(place), garage, heli);
+  const yaw = heli.craft
+    ? heli.heli.heading - Math.PI / 2
+    : garage.car
+      ? garage.car.heading - Math.PI / 2
+      : player.yaw;
+  minimap.draw(dt, player.pos.x, player.pos.z, yaw, garage, heli);
+  const speed = heli.craft
+    ? Math.hypot(heli.heli.speed, heli.heli.vy)
+    : garage.car
+      ? Math.abs(garage.car.speed)
+      : 0;
+  const room = heli.craft
+    ? `${place} · ${Math.round(heli.heli.y - H.grade)} m · ${Math.round(speed * 3.6)} km/h`
+    : garage.car
+      ? `${place} · ${Math.round(speed * 3.6)} km/h`
+      : place;
   if (room !== lastRoom) {
     roomLabel.textContent = room;
     lastRoom = room;
@@ -301,7 +364,7 @@ function frame() {
 renderer.setAnimationLoop(frame);
 
 // Exposed for debugging / automated checks from the console.
-window.__house = { scene, camera, renderer, player, garage, traffic, sound, world, colliders, doors, THREE };
+window.__house = { scene, camera, renderer, player, garage, traffic, parked, heli, sound, world, colliders, doors, THREE };
 // Debug camera: __house.cam(x, y, z, lookX, lookY, lookZ) parks a free camera; __house.walk() resumes walking.
 const walkUpdate = player.update.bind(player);
 window.__house.cam = (x, y, z, tx, ty, tz) => {

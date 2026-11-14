@@ -40,12 +40,12 @@ function blobMaterial() {
 }
 
 export class Car {
-  constructor(scene, kind, x, z, paint) {
+  constructor(scene, kind, x, z, paint, heading = Math.PI / 2) {
     const { group, spec } = buildCar(kind, paint);
     this.name = spec.name;
     this.spec = spec;
     this.group = group;
-    this.home = { x, z, heading: Math.PI / 2 }; // nose toward the house
+    this.home = { x, z, heading }; // home cars sit nose-in toward the house
     this.interior = null; // fitted the first time someone gets in
     this.glass = [];
     // The sun's shadow map is rendered once, so moving cars carry a soft blob shadow instead.
@@ -174,7 +174,11 @@ export class Garage {
   constructor(scene, camera, player) {
     this.camera = camera;
     this.player = player;
-    this.homeCars = [new Car(scene, 'tahoe', 5.05, 11.0), new Car(scene, 'bj30', 8.45, 10.8)];
+    this.homeCars = [
+      new Car(scene, 'tahoe', 5.05, 11.0),
+      new Car(scene, 'bj30', 8.45, 10.8),
+      new Car(scene, 'c8', 6.75, 16.55), // Corvette on the drive, next to the house
+    ];
     this.cars = [...this.homeCars]; // traffic.js adds the cars out on the estate, which can be driven too
     this.car = null; // the one being driven
     this.chase = false; // outside view instead of the driver's seat

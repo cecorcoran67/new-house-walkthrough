@@ -4,6 +4,7 @@ import map from './map.json';
 import { M, colorMat } from './materials.js';
 import { addObb, setFence, insideFence, pointInPolygon, solidAt } from './obstacles.js';
 import { H } from './house.js';
+import { helipadPrecinct } from './heli.js';
 
 // The Los Reyes neighbourhood around the house: real streets, boundary and landscape from
 // OpenStreetMap (see scripts/build-map.mjs), with stand-in houses and trees. Everything is
@@ -19,6 +20,7 @@ export const LOT = pairs(map.lot); // street-left, street-right, rear-right, rea
 export const ROADS = map.roads.map((r) => ({ name: r.n, w: r.w, pts: pairs(r.p) }));
 const LOTS = map.lots.map((l) => ({ vacant: !!l.v, pts: pairs(l.p) }));
 export const AREAS = map.areas.map((a) => ({ kind: a.k, pts: pairs(a.p) }));
+AREAS.push(helipadPrecinct());
 export const FENCE = pairs(map.boundary);
 
 // ---- Road lookup -------------------------------------------------------------------------
@@ -196,7 +198,7 @@ function buildFence(scene) {
 // ---- Stand-in houses ---------------------------------------------------------------------
 const WALLS = [0xf2ede4, 0xe9e0d0, 0xe6d8c3, 0xd9d4cc, 0xf5f1ea, 0xe0c9ad];
 const ROOFS = [0x8c5644, 0x774d3d, 0x85614f, 0x5e5a57, 0x92604a, 0x6a4a3d];
-const houses = [];
+export const houses = [];
 
 function inAnyArea(x, z) {
   return AREAS.some((a) => pointInPolygon(x, z, a.pts));
@@ -407,6 +409,25 @@ function buildLotEdges(scene) {
   edge(scene, along(frontR, rearR, 0.06), rearR, 0.1, 0.16, 1.9, M.stucco); // carport-side party wall
   edge(scene, rearL, along(rearL, frontL, 0.88), 0.1, 0.16, 1.9, M.stucco); // far-side party wall
   edge(scene, rearR, rearL, 0.4, 0.7, 1.6, M.plantDark); // rear hedge
+}
+
+/** One driveway bay per stand-in house, between the front wall and the street. */
+export function driveways() {
+  const spots = [];
+  for (const h of houses) {
+    const drive = (h.d / 2 + 4.6) * h.front;
+    const k = Math.abs(Math.round(h.x * 5 + h.z * 3));
+    const side = (k % 2 ? 1 : -1) * Math.min(h.w * 0.28, 5);
+    const x = h.x + Math.sin(h.angle) * drive + Math.cos(h.angle) * side;
+    const z = h.z + Math.cos(h.angle) * drive - Math.sin(h.angle) * side;
+    if (pointInPolygon(x, z, LOT)) continue; // the house's own drive already has its cars
+    if (!insideFence(x, z) || Math.hypot(x - 6, z - 12) < 20) continue;
+    const road = nearestRoad(x, z);
+    if (road && road.d < road.road.w / 2 + 1.4) continue;
+    const heading = Math.atan2(h.front * Math.cos(h.angle), -h.front * Math.sin(h.angle));
+    spots.push({ x, z, heading });
+  }
+  return spots;
 }
 
 export function buildWorld(scene) {

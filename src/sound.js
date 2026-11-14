@@ -58,6 +58,7 @@ export class Sound {
     this.ctx = null;
     this.muted = false;
     this.car = null;
+    this.craft = null;
     this.gear = 0;
     this.rpm = 0;
     // Downloading can start straight away; decoding has to wait for the audio context.
@@ -97,6 +98,7 @@ export class Sound {
     this.road = gain(ctx, 0, this.motor);
     this.cabin = lowpass(ctx, this.motor); // the engine as heard from the driver's seat
     this.engine = gain(ctx, 0.5, this.cabin);
+    this.buildRotor(ctx);
 
     // Every loop plays all the time; these gains decide which are heard.
     const into = { nature: this.muffle, road: this.road };
@@ -117,25 +119,60 @@ export class Sound {
     ).catch(() => {}); // a recording that fails to load just stays silent
   }
 
-  /** Call once a frame. `outside` is whether the listener is outdoors; `garage` says what is being driven. */
-  update(dt, outside, garage) {
+  /** Rotor wash is synthesized so the helicopter does not need its own recording. */
+  buildRotor(ctx) {
+    const n = ctx.sampleRate * 2;
+    const buffer = ctx.createBuffer(1, n, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < n; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 90;
+    bp.Q.value = 0.7;
+    this.rotorGain = gain(ctx, 0, this.master);
+    src.connect(bp);
+    bp.connect(this.rotorGain);
+    src.start();
+    this.rotorFilter = bp;
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = 24;
+    this.thumpGain = gain(ctx, 0, this.rotorGain);
+    osc.connect(this.thumpGain);
+    osc.start();
+    this.rotorOsc = osc;
+  }
+
+  /** Call once a frame. `outside` is whether the listener is outdoors; `garage` / `heli` say what is being flown. */
+  update(dt, outside, garage, heli) {
     const { ctx } = this;
     if (!ctx) return;
     const t = ctx.currentTime;
     const set = (param, value, lag = 0.06) => param.setTargetAtTime(value, t, lag);
     const rate = (name, value) => this.source[name] && set(this.source[name].playbackRate, value, 0.03);
-    const car = garage.car;
-    const cabin = car && !garage.chase;
+    const craft = heli?.craft;
+    const car = craft ? null : garage.car;
+    const cabin = (car && !garage.chase) || (craft && !heli.chase);
 
     set(this.nature.gain, !outside ? 0 : cabin ? 0.3 : car ? 0.55 : 0.8, 0.35);
     set(this.muffle.frequency, cabin ? 1400 : 18000, 0.2);
 
-    if (car !== this.car) {
-      // Door shuts; the engine catches with a flare of revs, or dies away
+    if (car !== this.car || craft !== this.craft) {
       this.play('door', 0.6);
       this.car = car;
+      this.craft = craft;
       this.gear = 0;
       if (car) this.rpm = ENGINES[car.spec.engine].idleRpm + 500;
+    }
+    if (this.rotorGain) {
+      const rpm = craft ? craft.rotor : 0;
+      set(this.rotorGain.gain, rpm > 0.04 ? 0.08 + rpm * 0.45 : 0, 0.1);
+      if (this.thumpGain) set(this.thumpGain.gain, rpm * 0.22, 0.1);
+      if (this.rotorOsc) set(this.rotorOsc.frequency, 18 + rpm * 16, 0.08);
+      if (this.rotorFilter) set(this.rotorFilter.frequency, 70 + rpm * 50, 0.1);
     }
     set(this.motor.gain, car ? 0.6 : 0, 0.12);
     if (!car) return;
