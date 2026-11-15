@@ -39,6 +39,49 @@ const ENGINES = {
 const GEARS = [5, 9.5, 15, 22]; // road speed (m/s) at which each gear runs out of revs
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+function radioLoop(ctx, seconds, sample) {
+  const n = Math.floor(ctx.sampleRate * seconds);
+  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  const fade = Math.floor(ctx.sampleRate * 0.03);
+  for (let i = 0; i < n; i++) d[i] = sample(i / ctx.sampleRate);
+  for (let i = 0; i < fade; i++) {
+    const a = i / fade;
+    d[i] *= a;
+    d[n - 1 - i] *= a;
+  }
+  return buf;
+}
+
+export const STATIONS = [
+  { name: 'Radio off' },
+  {
+    name: 'Los Reyes FM',
+    loop: (ctx) => radioLoop(ctx, 6, (t) => {
+      const notes = [261.6, 329.6, 392, 523.3, 392, 329.6];
+      const hz = notes[Math.floor(t * 2) % notes.length];
+      return Math.sin(t * hz * Math.PI * 2) * 0.22 * (0.6 + 0.4 * Math.sin(t * 3));
+    }),
+  },
+  {
+    name: 'Pacific Heat',
+    loop: (ctx) => radioLoop(ctx, 8, (t) => {
+      const a = Math.sin(t * 110 * Math.PI * 2) * 0.12;
+      const b = Math.sin(t * 164.8 * Math.PI * 2) * 0.1;
+      const surf = (Math.random() * 2 - 1) * 0.04 * (0.5 + 0.5 * Math.sin(t * 0.4));
+      return a + b + surf;
+    }),
+  },
+  {
+    name: 'Tico Talk',
+    loop: (ctx) => radioLoop(ctx, 4, (t) => {
+      const speech = (Math.random() * 2 - 1) * (0.5 + 0.5 * Math.sin(t * 7.5)) * 0.14;
+      const sting = Math.sin(t * 880 * Math.PI * 2) * Math.max(0, 0.08 - (t % 2)) * 0.5;
+      return speech + sting;
+    }),
+  },
+];
+
 function gain(ctx, value, to) {
   const g = ctx.createGain();
   g.gain.value = value;
@@ -61,6 +104,8 @@ export class Sound {
     this.craft = null;
     this.gear = 0;
     this.rpm = 0;
+    this.station = 0;
+    this.honkUntil = 0;
     // Downloading can start straight away; decoding has to wait for the audio context.
     this.files = Object.fromEntries(Object.entries(SOUNDS).map(([name, [url]]) => [name, fetch(url).then((r) => r.arrayBuffer())]));
   }
@@ -99,6 +144,7 @@ export class Sound {
     this.cabin = lowpass(ctx, this.motor); // the engine as heard from the driver's seat
     this.engine = gain(ctx, 0.5, this.cabin);
     this.buildRotor(ctx);
+    this.buildRadio(ctx);
 
     // Every loop plays all the time; these gains decide which are heard.
     const into = { nature: this.muffle, road: this.road };
@@ -146,6 +192,59 @@ export class Sound {
     this.rotorOsc = osc;
   }
 
+  /** Three looping stations, synthesized so there is radio without extra recordings. */
+  buildRadio(ctx) {
+    this.radioGain = gain(ctx, 0, this.cabin);
+    this.radioSrc = STATIONS.slice(1).map((st) => {
+      const src = ctx.createBufferSource();
+      src.buffer = st.loop(ctx);
+      src.loop = true;
+      const g = gain(ctx, 0, this.radioGain);
+      src.connect(g);
+      src.start();
+      return g;
+    });
+  }
+
+  cycleRadio() {
+    this.station = (this.station + 1) % STATIONS.length;
+    return STATIONS[this.station];
+  }
+
+  get honking() {
+    return performance.now() < this.honkUntil;
+  }
+
+  horn() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const out = gain(this.ctx, 0.22, this.master);
+    for (const hz of [392, 311]) {
+      const o = this.ctx.createOscillator();
+      o.type = 'square';
+      o.frequency.value = hz;
+      o.connect(out);
+      o.start(t);
+      o.stop(t + 0.35);
+    }
+    out.gain.setTargetAtTime(0, t + 0.22, 0.04);
+    this.honkUntil = performance.now() + 380;
+  }
+
+  chime() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const out = gain(this.ctx, 0.18, this.master);
+    [523, 659, 784].forEach((hz, i) => {
+      const o = this.ctx.createOscillator();
+      o.frequency.value = hz;
+      o.connect(out);
+      o.start(t + i * 0.07);
+      o.stop(t + i * 0.07 + 0.22);
+    });
+    out.gain.setTargetAtTime(0, t + 0.4, 0.05);
+  }
+
   /** Call once a frame. `outside` is whether the listener is outdoors; `garage` / `heli` say what is being flown. */
   update(dt, outside, garage, heli) {
     const { ctx } = this;
@@ -175,6 +274,10 @@ export class Sound {
       if (this.rotorFilter) set(this.rotorFilter.frequency, 70 + rpm * 50, 0.1);
     }
     set(this.motor.gain, car ? 0.6 : 0, 0.12);
+    if (this.radioGain) {
+      set(this.radioGain.gain, car && this.station ? 0.55 : 0, 0.12);
+      this.radioSrc?.forEach((g, i) => set(g.gain, this.station === i + 1 ? 1 : 0, 0.08));
+    }
     if (!car) return;
 
     const e = ENGINES[car.spec.engine];

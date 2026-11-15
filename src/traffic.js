@@ -367,6 +367,9 @@ export class Traffic {
       // Oncoming cars only count when they are properly in this lane
       mind(other, other.x, other.z, oL * Math.abs(dot) + oW * cross, oW * Math.abs(dot) + oL * cross, other.speed * dot, dot < -0.5 ? -0.3 : 0.4);
     }
+    if (this.crowd) {
+      for (const p of this.crowd) mind(p, p.x, p.z, 0.3, 0.3, 0, 0.6);
+    }
     let beside = false;
     if (walker.on) {
       mind(walker, walker.x, walker.z, 0.35, 0.35, 0, 0.5);

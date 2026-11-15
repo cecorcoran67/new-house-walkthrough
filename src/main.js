@@ -11,10 +11,11 @@ import { pointInPolygon } from './obstacles.js';
 import { Garage } from './drive.js';
 import { Traffic } from './traffic.js';
 import { Parked } from './parked.js';
-import { Sound } from './sound.js';
+import { Sound, STATIONS } from './sound.js';
 import { Minimap } from './minimap.js';
 import { Helipad, PAD } from './heli.js';
 import { beachAt } from './coast.js';
+import { Life } from './life.js';
 
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -148,6 +149,7 @@ furnishGround(house);
 furnishUpper(house);
 buildSite(scene);
 const world = buildWorld(scene);
+const life = new Life(scene);
 
 const player = new Player(camera, canvas);
 const garage = new Garage(scene, camera, player);
@@ -204,6 +206,8 @@ document.addEventListener('keydown', (e) => {
   if (e.repeat) return;
   if (e.code === 'KeyE') toggleRide();
   if (e.code === 'KeyC') toggleView();
+  if (e.code === 'KeyK' && garage.car) flashRadio(sound.cycleRadio());
+  if (e.code === 'KeyH' && garage.car) sound.horn();
 });
 const climbBtn = document.getElementById('climb');
 const downBtn = document.getElementById('down');
@@ -231,6 +235,8 @@ function updateCarButtons() {
   actBtn.hidden = !label;
   viewBtn.hidden = !riding();
   climbBtn.hidden = downBtn.hidden = !(heli.craft && touchMode);
+  document.getElementById('horn').hidden = document.getElementById('tune').hidden = !garage.car;
+  document.body.classList.toggle('driving', !!garage.car);
   if (label && actBtn.dataset.label !== label) actBtn.firstElementChild.textContent = actBtn.dataset.label = label;
 }
 
@@ -245,6 +251,54 @@ function toggleSound() {
 }
 soundBtn.addEventListener('click', toggleSound);
 document.addEventListener('keydown', (e) => e.code === 'KeyM' && !e.repeat && toggleSound());
+
+const radioHud = document.getElementById('radio');
+let radioHide = 0;
+function flashRadio(station) {
+  radioHud.textContent = station.name;
+  radioHud.classList.add('show');
+  clearTimeout(radioHide);
+  radioHide = setTimeout(() => radioHud.classList.remove('show'), 2200);
+}
+document.getElementById('tune').addEventListener('click', () => garage.car && flashRadio(sound.cycleRadio()));
+document.getElementById('horn').addEventListener('click', () => garage.car && sound.horn());
+
+const splashEl = document.getElementById('splash');
+let lastDistrict = '';
+let splashHide = 0;
+function districtOf(place) {
+  if (!place) return '';
+  if (/^(Jacó|Playa |Pacific|Los Reyes|Garden)/.test(place)) return place.replace(/ ·.*/, '');
+  if (INDOORS.has(place) || place === 'Stairs' || place === 'Second floor') return 'Home';
+  return place;
+}
+function flashDistrict(name) {
+  if (!name || name === lastDistrict) return;
+  lastDistrict = name;
+  splashEl.textContent = name;
+  splashEl.classList.add('show');
+  clearTimeout(splashHide);
+  splashHide = setTimeout(() => splashEl.classList.remove('show'), 2400);
+}
+
+const haulEl = document.getElementById('haul');
+function paintHaul() {
+  haulEl.textContent = `Souvenirs ${life.found}/${life.total}`;
+}
+paintHaul();
+
+const gpsEl = document.getElementById('gps');
+let waypoint = null;
+function mapYaw() {
+  return heli.craft ? heli.heli.heading - Math.PI / 2 : garage.car ? garage.car.heading - Math.PI / 2 : player.yaw;
+}
+document.getElementById('atlas-map').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const hit = minimap.pick(e, player.pos.x, player.pos.z, mapYaw(), garage, heli);
+  if (hit) waypoint = hit;
+});
+document.getElementById('atlas-map').style.cursor = 'crosshair';
+document.getElementById('atlas-map').title = 'Click to set a destination';
 
 document.getElementById('menu').addEventListener('click', () => overlay.classList.remove('hidden'));
 canvas.addEventListener('click', () => {
@@ -379,6 +433,13 @@ renderer.shadowMap.autoUpdate = false;
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   parked.update();
+  const picked = life.update(dt, player, garage, sound.honking);
+  if (picked) {
+    sound.chime();
+    paintHaul();
+    flashDistrict(life.found === life.total ? 'All souvenirs found' : `Souvenir ${life.found} of ${life.total}`);
+  }
+  traffic.crowd = life.crowd;
   traffic.update(dt);
   if (minimap.wide) {
     if (heli.craft) heli.heli.spin(dt, heli.heli.airborne ? 1 : 0.1);
@@ -396,12 +457,18 @@ function frame() {
   updateCarButtons();
   const place = currentRoom();
   sound.update(dt, !INDOORS.has(place), garage, heli);
-  const yaw = heli.craft
-    ? heli.heli.heading - Math.PI / 2
-    : garage.car
-      ? garage.car.heading - Math.PI / 2
-      : player.yaw;
-  minimap.draw(dt, player.pos.x, player.pos.z, yaw, garage, heli);
+  flashDistrict(districtOf(place));
+  const yaw = mapYaw();
+  if (waypoint && Math.hypot(player.pos.x - waypoint.x, player.pos.z - waypoint.z) < 10) {
+    waypoint = null;
+    flashDistrict('Waypoint reached');
+  }
+  gpsEl.hidden = !waypoint;
+  if (waypoint) {
+    const metres = Math.hypot(player.pos.x - waypoint.x, player.pos.z - waypoint.z);
+    gpsEl.textContent = metres >= 1000 ? `${(metres / 1000).toFixed(1)} km` : `${Math.round(metres)} m`;
+  }
+  minimap.draw(dt, player.pos.x, player.pos.z, yaw, garage, heli, { waypoint, souvenirs: life.leftovers() });
   const speed = heli.craft
     ? Math.hypot(heli.heli.speed, heli.heli.vy)
     : garage.car
@@ -421,7 +488,7 @@ function frame() {
 renderer.setAnimationLoop(frame);
 
 // Exposed for debugging / automated checks from the console.
-window.__house = { scene, camera, renderer, player, garage, traffic, parked, heli, sound, world, colliders, doors, THREE };
+window.__house = { scene, camera, renderer, player, garage, traffic, parked, heli, sound, world, life, colliders, doors, THREE };
 // Debug camera: __house.cam(x, y, z, lookX, lookY, lookZ) parks a free camera; __house.walk() resumes walking.
 const walkUpdate = player.update.bind(player);
 window.__house.cam = (x, y, z, tx, ty, tz) => {

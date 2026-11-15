@@ -56,14 +56,30 @@ export class Minimap {
   }
 
   /** Draw the map around (x, z) with `yaw` facing up. `garage` / `heli` set the zoom when you are driving or flying. */
-  draw(dt, x, z, yaw, garage, heli) {
+  draw(dt, x, z, yaw, garage, heli, extras = {}) {
     const want = wantRange(garage, heli, false);
     this.range += (want - this.range) * Math.min(1, dt * 2);
-    this.paint(this.ctx, this.size, this.range, x, z, yaw, heli);
-    if (this.wide) this.paint(this.wideCtx, this.wideSize, wantRange(garage, heli, true), x, z, yaw, heli);
+    this.paint(this.ctx, this.size, this.range, x, z, yaw, heli, extras);
+    if (this.wide) this.paint(this.wideCtx, this.wideSize, wantRange(garage, heli, true), x, z, yaw, heli, extras);
   }
 
-  paint(ctx, size, range, x, z, yaw, heli) {
+  /** World x/z under a click on the large map, or null if the click missed the disc. */
+  pick(e, x, z, yaw, garage, heli) {
+    const rect = this.wideCanvas.getBoundingClientRect();
+    const size = rect.width;
+    const cx = e.clientX - rect.left - size / 2;
+    const cy = e.clientY - rect.top - size / 2;
+    if (Math.hypot(cx, cy) > size / 2 - 4) return null;
+    const range = wantRange(garage, heli, true);
+    const s = size / 2 / range;
+    const cos = Math.cos(yaw);
+    const sin = Math.sin(yaw);
+    const mx = cx / s;
+    const my = cy / s;
+    return { x: x + mx * cos + my * sin, z: z - mx * sin + my * cos };
+  }
+
+  paint(ctx, size, range, x, z, yaw, heli, extras = {}) {
     if (!size) return;
     const { dpr } = this;
     const R = size / 2;
@@ -162,6 +178,35 @@ export class Minimap {
     };
     rim(home[0], home[1], pin * 1.25, this.accent);
     for (const b of BEACHES) rim(b.x, b.z, pin, this.muted);
+    const wp = extras.waypoint;
+    if (wp) {
+      const [wx, wy] = toScreen(wp.x - x, wp.z - z);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(wx, wy);
+      ctx.strokeStyle = this.accent;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(wx, wy, pin * 1.4, 0, Math.PI * 2);
+      ctx.fillStyle = this.accent;
+      ctx.fill();
+      ctx.strokeStyle = this.ink;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+    if (extras.souvenirs) {
+      ctx.fillStyle = this.accent;
+      for (const s of extras.souvenirs) {
+        const [sx, sy] = toScreen(s.x - x, s.z - z);
+        if (sx * sx + sy * sy > (R - 4) ** 2) continue;
+        ctx.beginPath();
+        ctx.arc(sx, sy, pin * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     const [nx, ny] = toScreen(Math.cos(NORTH) * range, Math.sin(NORTH) * range);
     ctx.font = `600 ${Math.max(12, Math.round(size * 0.038))}px ${this.fontFamily}`;
     ctx.textAlign = 'center';

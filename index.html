@@ -62,6 +62,25 @@
         aspect-ratio: 1; height: auto; border-radius: 50%; box-sizing: border-box;
         background: var(--hud-bg); border: 2px solid var(--hud-muted);
       }
+      #splash {
+        position: fixed; left: 50%; top: 22%; transform: translateX(-50%); z-index: 4;
+        margin: 0; padding: var(--hud-space-1) var(--hud-space-3); border-radius: var(--hud-radius);
+        background: var(--hud-bg); color: var(--hud-fg); font: 700 28px var(--hud-font);
+        letter-spacing: 0.14em; text-transform: uppercase; pointer-events: none;
+        opacity: 0; transition: opacity 0.45s ease;
+      }
+      #splash.show { opacity: 1; }
+      #haul, #gps, #radio {
+        position: fixed; pointer-events: none; background: var(--hud-bg); color: var(--hud-fg);
+        padding: var(--hud-space-1) var(--hud-space-2); border-radius: var(--hud-radius); font: 600 14px var(--hud-font);
+      }
+      #haul { left: var(--hud-space-2); bottom: calc(var(--hud-space-2) + 40px); }
+      .touch #haul { left: calc(var(--hud-space-2) + env(safe-area-inset-left)); bottom: auto; top: calc(var(--hud-space-2) + 44px + env(safe-area-inset-top)); }
+      #gps { left: 50%; bottom: calc(var(--hud-space-2) + env(safe-area-inset-bottom)); transform: translateX(-50%); color: var(--hud-accent); }
+      #radio { left: 50%; top: calc(var(--hud-space-3) + env(safe-area-inset-top)); transform: translateX(-50%); opacity: 0; transition: opacity 0.3s; }
+      #radio.show { opacity: 1; }
+      #horn, #tune { display: none; }
+      .touch.driving #horn, .touch.driving #tune { display: block; }
       #overlay { z-index: 3; }
       /* Touch controls: only shown on touch screens (body.touch). */
       #stick, #menu { display: none; }
@@ -130,6 +149,10 @@
     <canvas id="scene"></canvas>
     <div id="crosshair" aria-hidden="true"></div>
     <div id="room" role="status" aria-live="polite">Garden</div>
+    <div id="haul" role="status">Souvenirs 0/20</div>
+    <div id="gps" hidden></div>
+    <p id="splash" aria-live="polite"></p>
+    <div id="radio" role="status"></div>
     <button id="map-btn" type="button" aria-label="Open larger map" aria-expanded="false" aria-controls="atlas">
       <canvas id="map" aria-hidden="true"></canvas>
     </button>
@@ -143,12 +166,14 @@
       <button id="view" class="hud-btn" type="button" hidden>Change view<kbd>C</kbd></button>
       <button id="climb" class="hud-btn" type="button" hidden>Climb</button>
       <button id="down" class="hud-btn" type="button" hidden>Down</button>
+      <button id="tune" class="hud-btn" type="button" hidden>Radio<kbd>K</kbd></button>
+      <button id="horn" class="hud-btn" type="button" hidden>Horn<kbd>H</kbd></button>
       <button id="act" class="hud-btn" type="button" hidden><span></span><kbd>E</kbd></button>
     </div>
     <div id="overlay">
       <div class="card">
         <h1>Walk through the house</h1>
-        <p>Doors open as you approach and you can walk straight through them. Take the floating stairs up to the second floor, or take a car from the carport and drive around Los Reyes.</p>
+        <p>Doors open as you approach and you can walk straight through them. Take a car from the carport, drive the streets, follow the GPS, and hunt the gold souvenirs around Los Reyes and the Pacific.</p>
         <dl class="keys for-keys">
           <dt>W A S D</dt><dd>Walk (arrow keys also work)</dd>
           <dt>Mouse</dt><dd>Look around</dd>
@@ -156,7 +181,9 @@
           <dt>Space</dt><dd>Jump, or climb in the helicopter</dd>
           <dt>E</dt><dd>Get in or out of a car or the helicopter (W A S D drive or fly, C changes view). Fly southwest to Jacó and the Pacific beaches</dd>
           <dt>M</dt><dd>Mute or unmute the sound</dd>
-          <dt>Mini map</dt><dd>Click it for a larger view of Los Reyes</dd>
+          <dt>K</dt><dd>Next radio station (in a car)</dd>
+          <dt>H</dt><dd>Horn</dd>
+          <dt>Mini map</dt><dd>Click it for a larger view; click the large map to set a GPS destination</dd>
           <dt>1 – 9</dt><dd>Jump to one of the places below</dd>
           <dt>Esc</dt><dd>Close the large map, or release the mouse</dd>
         </dl>
@@ -165,7 +192,8 @@
           <dt>Drag</dt><dd>Look up, down and around</dd>
           <dt>Cars</dt><dd>Walk up to one and tap Drive, or step in front of one on the street to stop it; the joystick then steers and accelerates, and letting go stops the car</dd>
           <dt>Helicopter</dt><dd>Walk up to it and tap Fly; joystick pitches and yaws, Climb and Down change altitude. Fly southwest to Jacó and the Pacific beaches; land on the sand before getting out</dd>
-          <dt>Mini map</dt><dd>Tap it for a larger view of Los Reyes</dd>
+          <dt>Mini map</dt><dd>Tap it for a larger view; tap the large map to set a GPS destination</dd>
+          <dt>Radio / Horn</dt><dd>While driving</dd>
           <dt>Menu</dt><dd>Come back to this screen</dd>
         </dl>
         <div id="places" role="group" aria-label="Jump to a place"></div>
